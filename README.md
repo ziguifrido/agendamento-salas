@@ -5,7 +5,7 @@
 [![Último commit](https://img.shields.io/github/last-commit/ziguifrido/agendamento-salas?label=%C3%BAltimo%20commit&color=6C8EBF)](https://github.com/ziguifrido/agendamento-salas/commits/main)
 [![Atividade de commits](https://img.shields.io/github/commit-activity/m/ziguifrido/agendamento-salas?label=atividade&color=6C8EBF)](https://github.com/ziguifrido/agendamento-salas/commits/main)
 [![Tamanho do repositório](https://img.shields.io/github/repo-size/ziguifrido/agendamento-salas?label=tamanho&color=6C8EBF)](https://github.com/ziguifrido/agendamento-salas)
-[![Versão](https://img.shields.io/badge/vers%C3%A3o-v0.1.0-6C8EBF)](VERSION)
+[![Versão](https://img.shields.io/badge/vers%C3%A3o-v0.2.0-6C8EBF)](VERSION)
 [![Go](https://img.shields.io/badge/Go-1.24%2B-00ADD8?logo=go&logoColor=white)](https://go.dev/)
 [![SQLite](https://img.shields.io/badge/SQLite-embutido-003B57?logo=sqlite&logoColor=white)](https://www.sqlite.org/)
 [![PWA](https://img.shields.io/badge/PWA-instal%C3%A1vel-5A0FC8?logo=pwa&logoColor=white)](https://web.dev/learn/pwa/)
@@ -19,10 +19,11 @@ O **Reserva de Salas de Reunião** foi pensado para equipes que precisam de uma 
 
 - Agenda por **dia** ou por **semana**, com navegação entre datas.
 - Busca por sala, responsável ou título da reserva.
-- Filtro de sala na visualização semanal.
-- Cadastro de salas com capacidade, localização, descrição e recursos.
-- Criação e cancelamento de reservas.
+- Filtro de sala, troca de visualização e navegação atualizados imediatamente.
+- Cadastro e gestão de salas em dialogs: visualizar, editar e excluir.
+- Criação, detalhamento e cancelamento de reservas.
 - Bloqueio de horários sobrepostos para a mesma sala.
+- Notificações empilhadas, descartáveis e temporárias.
 - Interface responsiva, acessível e instalável como PWA.
 - Dados persistidos em SQLite, sem ORM e com consultas parametrizadas.
 
@@ -57,12 +58,13 @@ docker compose down
 
 ## Como usar
 
-1. Acesse **Cadastrar sala** e informe ao menos o nome e a capacidade.
-2. Na agenda, selecione **Nova reserva**.
-3. Escolha a sala, responsável, título, data e intervalo de horário.
-4. Confirme a reserva. Se já houver ocupação no período, a aplicação informa o conflito e preserva o formulário para correção.
+1. Abra a engrenagem no rodapé do painel lateral e selecione **Cadastrar sala**.
+2. Use **Gerenciar salas** no mesmo menu para visualizar, editar ou excluir uma sala. Salas com agendamentos não podem ser excluídas.
+3. Na agenda, selecione **Nova reserva**.
+4. Escolha a sala, responsável, título, data e intervalo de horário.
+5. Confirme a reserva. Se já houver ocupação no período, a aplicação informa o conflito e preserva o formulário para correção.
 
-Use a busca para localizar reservas e alterne entre as visões diária e semanal conforme necessário. O botão **Cancelar** remove uma reserva existente.
+Use a busca para localizar reservas e alterne entre as visões diária e semanal conforme necessário. Clique em uma reserva para ver seus detalhes; o botão **Cancelar** remove uma reserva existente após confirmação.
 
 ## Configuração
 
@@ -83,7 +85,7 @@ ADDR=:3000 DATABASE_PATH=/var/lib/salas/reservas.db go run ./cmd/server
 - Reservas devem ter data válida, não anterior ao dia atual e horário de início menor que o de término.
 - Uma sala não pode ter reservas com horários sobrepostos no mesmo dia.
 - A data, visualização e filtro de sala da agenda são guardados em cookies de sessão.
-- Mensagens e dados de formulário após erro usam um cookie temporário, consumido no próximo carregamento; por isso não são incluídos na URL.
+- Mensagens e dados de formulário após erro usam um cookie temporário, consumido no próximo carregamento; por isso não são incluídos na URL. A pilha visual de notificações é mantida no `sessionStorage` até o descarte individual.
 - As respostas incluem cabeçalhos de proteção para conteúdo, frame e origem de referência. Requisições `POST` com origem externa são recusadas.
 
 > **Nota:** ainda não há autenticação ou autorização. Use a aplicação apenas em um ambiente confiável até que exista uma fonte de identidade definida.
@@ -108,7 +110,7 @@ go test ./...
 go vet ./...
 ```
 
-Os testes cobrem validação de datas e horários, navegação diária, início da semana e preservação dos campos de reserva após erros.
+Os testes cobrem validação de datas e horários, navegação diária, início da semana, preservação dos campos de reserva após erros e exclusão de salas.
 
 ## Versionamento
 
