@@ -10,12 +10,17 @@ Com Docker: `docker compose up --build`. O volume `salas-data` preserva as reser
 
 ## Desenvolvimento
 
-`go test ./...` valida horários. Não há ORM: consultas SQL são parametrizadas e o índice de agenda atende a busca por sala, data e horário.
+`go test ./...` valida datas, horários, navegação diária e preservação do formulário. Não há ORM: consultas SQL são parametrizadas e o índice de agenda atende a busca por sala, data e horário.
+
+## Sessão
+
+A data selecionada da agenda é mantida em um cookie de sessão. Mensagens de sistema e os dados do formulário após erro usam um cookie temporário, consumido na próxima página; por isso não aparecem ao recarregar ou compartilhar a URL.
 
 ## Estrutura
 
 - `cmd/server`: servidor, regras e migração SQLite.
-- `web`: templates, estilos e PWA.
+- `web/templates`: páginas HTML renderizadas pelo servidor.
+- `web/templates/static`: CSS, JavaScript (incluindo HTMX local), manifesto, service worker e ícones da PWA.
 
 ## Roadmap
 

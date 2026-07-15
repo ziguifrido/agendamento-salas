@@ -1,6 +1,7 @@
 package main
 
 import (
+	"net/http"
 	"net/http/httptest"
 	"net/url"
 	"strings"
@@ -27,6 +28,16 @@ func TestDateBR(t *testing.T) {
 func TestDateISO(t *testing.T) {
 	if got := dateISO("14/07/2026"); got != "2026-07-14" {
 		t.Fatalf("got %q", got)
+	}
+}
+
+func TestNavigateAgenda(t *testing.T) {
+	r := httptest.NewRequest("POST", "/agenda/next", nil)
+	r.AddCookie(&http.Cookie{Name: "agenda_day", Value: "2026-07-14"})
+	w := httptest.NewRecorder()
+	(&App{}).navigateAgenda(w, r)
+	if w.Code != http.StatusSeeOther || !strings.Contains(w.Header().Get("Set-Cookie"), "2026-07-15") {
+		t.Fatalf("unexpected navigation: %d %s", w.Code, w.Header().Get("Set-Cookie"))
 	}
 }
 

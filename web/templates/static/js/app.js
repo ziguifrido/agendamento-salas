@@ -7,4 +7,4 @@ document.querySelectorAll('.cancel-form').forEach(form => form.addEventListener(
   if (!confirm('Cancelar este agendamento?')) event.preventDefault();
 }));
 document.querySelectorAll('.toast-close').forEach(button => button.addEventListener('click', () => button.parentElement.remove()));
-document.querySelectorAll('.toast').forEach(toast => setTimeout(() => toast.remove(), 3000));
+document.querySelectorAll('.toast').forEach(toast => setTimeout(() => toast.remove(), 5000));

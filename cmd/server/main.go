@@ -56,6 +56,7 @@ func main() {
 	mux.Handle("/static/", http.StripPrefix("/static/", http.FileServer(http.Dir("web/templates/static"))))
 	mux.HandleFunc("/", a.dashboard)
 	mux.HandleFunc("/rooms", a.rooms)
+	mux.HandleFunc("/agenda/", a.navigateAgenda)
 	mux.HandleFunc("/bookings", a.bookings)
 	mux.HandleFunc("/bookings/", a.bookingAction)
 	addr := os.Getenv("ADDR")
@@ -91,6 +92,30 @@ func security(next http.Handler) http.Handler {
 func (a *App) dashboard(w http.ResponseWriter, r *http.Request) {
 	a.render(w, "dashboard.html", a.data(w, r))
 }
+func (a *App) navigateAgenda(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.NotFound(w, r)
+		return
+	}
+	day := agendaDay(r)
+	if day == "" {
+		day = time.Now().Format("2006-01-02")
+	}
+	d, _ := time.Parse("2006-01-02", day)
+	switch strings.TrimPrefix(r.URL.Path, "/agenda/") {
+	case "previous":
+		d = d.AddDate(0, 0, -1)
+	case "next":
+		d = d.AddDate(0, 0, 1)
+	case "today":
+		d = time.Now()
+	default:
+		http.NotFound(w, r)
+		return
+	}
+	setAgendaDay(w, d.Format("2006-01-02"))
+	http.Redirect(w, r, "/", http.StatusSeeOther)
+}
 func (a *App) data(w http.ResponseWriter, r *http.Request) map[string]any {
 	day := dateISO(r.URL.Query().Get("day"))
 	if day != "" {
@@ -109,7 +134,8 @@ func (a *App) data(w http.ResponseWriter, r *http.Request) map[string]any {
 	if f.Form.Day == "" {
 		f.Form.Day = day
 	}
-	return map[string]any{"Day": day, "Form": f.Form, "Rooms": a.roomList(), "Bookings": a.bookingList(day, r.URL.Query().Get("q")), "Message": f.Message, "Error": f.Error}
+	query := strings.TrimSpace(r.URL.Query().Get("q"))
+	return map[string]any{"Day": day, "Form": f.Form, "Query": query, "Rooms": a.roomList(), "Bookings": a.bookingList(day, query), "Message": f.Message, "Error": f.Error}
 }
 func (a *App) roomList() []Room {
 	rows, err := a.db.Query("SELECT id,name,description,capacity,location,resources FROM rooms ORDER BY name")
