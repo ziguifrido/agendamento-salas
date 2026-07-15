@@ -24,4 +24,4 @@ As migrações são idempotentes no código; a aplicação não possui autentica
 
 O cadastro e a gestão de salas são dialogs da agenda. Preserve a proteção contra exclusão de salas com agendamentos e a confirmação antes da exclusão.
 
-O menu de configurações concentra o modo apresentação e a atualização automática. Ambos recarregam a agenda a cada 30 segundos; na troca de dia, use a data local do navegador para atualizar o cookie de sessão. A classificação visual de agendamentos encerrados e em andamento também deve usar o relógio do navegador, para respeitar o fuso horário do usuário.
+O menu de configurações concentra os temas claro, escuro e automático, além do modo apresentação e da atualização automática. A preferência de tema usa `sessionStorage` e o modo automático acompanha o sistema operacional sem recarregar a página. Ambos os modos de atualização recarregam a agenda a cada 30 segundos; na troca de dia, use a data local do navegador para atualizar o cookie de sessão. A classificação visual de agendamentos encerrados e em andamento também deve usar o relógio do navegador, para respeitar o fuso horário do usuário.

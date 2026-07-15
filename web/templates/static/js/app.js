@@ -6,8 +6,24 @@ const viewRoomDialog = document.querySelector('#view-room-dialog');
 const presentationToggle = document.querySelector('#presentation-toggle');
 const automaticRefreshToggle = document.querySelector('#automatic-refresh-toggle');
 const sidebarToggle = document.querySelector('#toggle-sidebar');
+const themeSelect = document.querySelector('#theme-select');
 
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('/static/sw.js');
+const themeMedia = matchMedia('(prefers-color-scheme: dark)');
+let theme = 'auto';
+try { theme = sessionStorage.getItem('theme') || 'auto'; } catch {}
+const setTheme = selected => {
+  const dark = selected === 'dark' || (selected === 'auto' && themeMedia.matches);
+  document.documentElement.dataset.theme = dark ? 'dark' : 'light';
+  document.querySelector('meta[name="theme-color"]').content = getComputedStyle(document.documentElement).getPropertyValue('--bg').trim();
+  try { sessionStorage.setItem('theme', selected); } catch {}
+};
+themeSelect.value = theme;
+setTheme(theme);
+themeSelect.addEventListener('change', () => setTheme(themeSelect.value));
+themeMedia.addEventListener('change', () => {
+  if (themeSelect.value === 'auto') setTheme('auto');
+});
 let sidebarCollapsed = false;
 try { sidebarCollapsed = sessionStorage.getItem('sidebar-collapsed') === 'true'; } catch {}
 const setSidebarCollapsed = collapsed => {

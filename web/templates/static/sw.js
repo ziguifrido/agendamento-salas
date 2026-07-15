@@ -1,4 +1,4 @@
-const CACHE = 'salas-v36';
+const CACHE = 'salas-v37';
 const ASSETS = ['/static/css/tokens.css', '/static/css/app.css', '/static/js/htmx.js', '/static/js/app.js', '/static/manifest.webmanifest', '/static/icons/icon.svg'];
 
 self.addEventListener('install', event => {

@@ -48,11 +48,13 @@ input,select,textarea,button{
   padding:var(--space-3);
   border-radius:var(--radius-sm);
   border:1px solid var(--border);
+  background:var(--input);
+  color:var(--text);
   min-height:44px}
 select{
   height:48px;
   min-height:48px;
-  background:var(--surface)}
+  background:var(--input)}
 textarea{
   min-height:88px;
   resize:vertical}
@@ -62,7 +64,7 @@ input:focus,select:focus,textarea:focus,button:focus-visible{
   border-color:var(--primary)}
 button{
   background:var(--primary);
-  color:#fff;
+  color:var(--on-primary);
   border:1px solid var(--primary);
   font-weight:600;
   cursor:pointer;
@@ -90,7 +92,7 @@ button:disabled{
   width:var(--sidebar-width);
   overflow-y:auto;
   padding:var(--space-6);
-  background:var(--surface);
+  background:var(--sidebar);
   border-right:1px solid var(--divider);
   display:flex;
   flex-direction:column}
@@ -169,6 +171,19 @@ body.sidebar-collapsed .agenda-filter{
   padding-inline:var(--space-3);
   font-weight:400;
   white-space:nowrap}
+.theme-select{
+  display:flex;
+  align-items:center;
+  gap:var(--space-2);
+  margin:0;
+  padding-inline:var(--space-3);
+  font-weight:400}
+.theme-select select{
+  width:auto;
+  height:36px;
+  min-height:36px;
+  margin-left:auto;
+  padding:var(--space-1) var(--space-2)}
 .presentation-toggle input,.automatic-refresh-toggle input{
   width:20px;
   min-height:20px;
@@ -258,7 +273,7 @@ body.presentation #exit-presentation:hover{
 .agenda-filter input{
   height:48px;
   min-height:48px;
-  background:var(--surface)}
+  background:var(--input)}
 .clear-search{
   position:absolute;
   top:4px;
@@ -361,11 +376,11 @@ body.presentation #exit-presentation:hover{
 .danger,.booking .danger{
   background:var(--error);
   border-color:var(--error);
-  color:#fff}
+  color:var(--on-primary)}
 .danger:hover,.booking .danger:hover{
   background:color-mix(in srgb,var(--error),var(--text) 20%);
   border-color:color-mix(in srgb,var(--error),var(--text) 20%);
-  color:#fff}
+  color:var(--on-primary)}
 .empty{
   padding:var(--space-8);
   text-align:center;
@@ -404,14 +419,16 @@ body.presentation #exit-presentation:hover{
   background:transparent;
   color:currentColor}
 .ok{
-  background:#E7F1E9;
-  color:#345C3F;
+  background:var(--toast-ok-bg);
+  color:var(--toast-ok-text);
   border-color:var(--success)}
 .error{
-  background:#F6E8E8;
-  color:#7E4141;
+  background:var(--toast-error-bg);
+  color:var(--toast-error-text);
   border-color:var(--error)}
 dialog{
+  background:var(--surface);
+  color:var(--text);
   border:1px solid var(--border);
   border-radius:var(--radius-lg);
   box-shadow:var(--shadow-md);

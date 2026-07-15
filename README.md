@@ -19,6 +19,7 @@ O **Reserva de Salas de Reunião** foi pensado para equipes que precisam de uma 
 
 - Agenda por **dia** ou por **semana**, com navegação entre datas.
 - Modo apresentação e atualização automática da agenda a cada 30 segundos.
+- Temas claro, escuro e automático, seguindo a preferência do sistema quando selecionado.
 - Busca por sala, responsável ou título da reserva.
 - Filtro de sala, troca de visualização e navegação atualizados imediatamente.
 - Cadastro e gestão de salas em dialogs: visualizar, editar e excluir.
@@ -67,7 +68,7 @@ docker compose down
 5. Escolha a sala, responsável, título, data e intervalo de horário.
 6. Confirme a reserva. Se já houver ocupação no período, a aplicação informa o conflito e preserva o formulário para correção.
 
-Use a busca para localizar reservas e alterne entre as visões diária e semanal conforme necessário. Clique em uma reserva para ver seus detalhes; o botão **Cancelar** remove reservas não encerradas após confirmação. Pelo menu de configurações, habilite o modo apresentação ou a atualização automática. Ambos atualizam a agenda a cada 30 segundos e selecionam o dia atual quando ocorre a virada de data no navegador.
+Use a busca para localizar reservas e alterne entre as visões diária e semanal conforme necessário. Clique em uma reserva para ver seus detalhes; o botão **Cancelar** remove reservas não encerradas após confirmação. Pelo menu de configurações, escolha o tema claro, escuro ou automático e habilite o modo apresentação ou a atualização automática. Ambos atualizam a agenda a cada 30 segundos e selecionam o dia atual quando ocorre a virada de data no navegador.
 
 ## Configuração
 
@@ -89,7 +90,7 @@ ADDR=:3000 DATABASE_PATH=/var/lib/salas/reservas.db go run ./cmd/server
 - Uma sala não pode ter reservas com horários sobrepostos no mesmo dia.
 - A data, visualização e filtro de sala da agenda são guardados em cookies de sessão.
 - Mensagens e dados de formulário após erro usam um cookie temporário, consumido no próximo carregamento; por isso não são incluídos na URL. A pilha visual de notificações é mantida no `sessionStorage` até o descarte individual.
-- As preferências de apresentação, atualização automática e painel lateral são mantidas no `sessionStorage`. O estado temporal dos agendamentos usa o relógio local do navegador.
+- As preferências de tema, apresentação, atualização automática e painel lateral são mantidas no `sessionStorage`. O estado temporal dos agendamentos usa o relógio local do navegador.
 - As respostas incluem cabeçalhos de proteção para conteúdo, frame e origem de referência. Requisições `POST` com origem externa são recusadas.
 
 > **Nota:** ainda não há autenticação ou autorização. Use a aplicação apenas em um ambiente confiável até que exista uma fonte de identidade definida.
