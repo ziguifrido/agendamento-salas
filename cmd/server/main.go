@@ -150,6 +150,9 @@ func (a *App) roomList() []Room {
 			out = append(out, v)
 		}
 	}
+	if rows.Err() != nil {
+		return nil
+	}
 	return out
 }
 func (a *App) bookingList(day, q string) []Booking {
@@ -164,6 +167,9 @@ func (a *App) bookingList(day, q string) []Booking {
 		if rows.Scan(&v.ID, &v.RoomID, &v.Room, &v.Owner, &v.Title, &v.Description, &v.Day, &v.Starts, &v.Ends) == nil {
 			out = append(out, v)
 		}
+	}
+	if rows.Err() != nil {
+		return nil
 	}
 	return out
 }
