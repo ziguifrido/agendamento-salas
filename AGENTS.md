@@ -1,0 +1,20 @@
+# Guia de contribuição
+
+## Objetivo
+
+Manter uma agenda de salas simples, rápida e segura, com Go, SQLite e páginas HTML server-side.
+
+## Convenções
+
+- Prefira biblioteca padrão e SQL parametrizado; `modernc.org/sqlite` é a única dependência de produção.
+- Não adicione frameworks JavaScript, ORMs ou camadas de repositório sem necessidade comprovada.
+- Preserve a validação de horário no servidor e adicione um teste pequeno para regras novas.
+- Use HTML semântico, foco visível e controles com pelo menos 44px para toque.
+
+## Fluxo
+
+Rode `go fmt ./...`, `go test ./...` e `go vet ./...`. Valide manualmente criação, conflito e cancelamento. Pull requests precisam manter esses comandos verdes e explicar qualquer dependência nova.
+
+## Decisões
+
+As migrações são idempotentes no código; a aplicação não possui autenticação até que exista requisito de identidade e autorização.

@@ -1,0 +1,15 @@
+{
+  "name": "Reservas de Salas",
+  "short_name": "Salas",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#F7F9FC",
+  "theme_color": "#6C8EBF",
+  "icons": [
+    {
+      "src": "/static/icons/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml"
+    }
+  ]
+}

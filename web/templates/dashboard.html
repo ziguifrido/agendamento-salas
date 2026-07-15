@@ -1,0 +1,89 @@
+{{define "dashboard.html"}}<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#6C8EBF">
+<link rel="manifest" href="/static/manifest.webmanifest">
+<link rel="stylesheet" href="/static/css/tokens.css">
+<link rel="stylesheet" href="/static/css/app.css">
+<script src="/static/js/htmx.js" defer>
+</script>
+<script src="/static/js/app.js" defer>
+</script>
+<title>Salas</title>
+</head>
+<body>{{if .Message}}<div class="toast ok" role="status">{{.Message}}<button class="toast-close" aria-label="Fechar notificação">×</button>
+</div>{{end}}
+<header>
+<a href="/">Salas</a>
+<a href="/rooms">Cadastrar sala</a>
+</header>
+<main>
+<div class="page-title">
+<div>
+<h1>Agenda de salas</h1>
+<p class="muted">Veja a disponibilidade e crie reservas.</p>
+</div>{{if .Rooms}}<button id="new-booking" class="new-booking">Nova reserva</button>{{end}}
+</div>
+<section>
+<div class="section-title">
+<div>
+<h2>Agenda diária</h2>
+<span class="muted">{{dateBR .Day}}</span>
+</div>
+<form>
+<input type="text" name="day" value="{{dateBR .Day}}" placeholder="dd/mm/aaaa" pattern="[0-9]{2}/[0-9]{2}/[0-9]{4}" aria-label="Data">
+<input name="q" placeholder="Pesquisar" aria-label="Pesquisar">
+<button>Ver</button>
+</form>
+</div>{{if .Bookings}}<div class="bookings">{{range .Bookings}}<article class="booking">
+<div>
+<strong>{{.Starts}}–{{.Ends}} · {{.Room}}</strong>
+<br>{{.Title}} <span class="muted">· {{.Owner}}</span>{{if .Description}}<p>{{.Description}}</p>{{end}}
+</div>
+<form class="cancel-form" method="post" action="/bookings/{{.ID}}/cancel">
+<input type="hidden" name="day" value="{{dateBR $.Day}}">
+<button class="danger">Cancelar</button>
+</form>
+</article>{{end}}
+</div>{{else}}
+<p class="empty">Nenhuma reserva para esta data. Todas as salas estão livres.</p>{{end}}
+</section>
+</main>{{if .Rooms}}<dialog id="booking-dialog" {{if .Error}}data-open{{end}}
+>{{if .Error}}<div class="toast error" role="alert">{{.Error}}<button class="toast-close" aria-label="Fechar notificação">×</button>
+</div>{{end}}
+<div class="dialog-title">
+<h2>Nova reserva</h2>
+<form method="dialog">
+<button class="close" aria-label="Fechar">×</button>
+</form>
+</div>
+<form id="booking-form" method="post" action="/bookings">
+<label>Sala<select name="room_id" required>{{range .Rooms}}<option value="{{.ID}}" {{if eq .ID $.Form.RoomID}}selected{{end}}
+>{{.Name}} · {{.Capacity}} pessoas</option>{{end}}
+</select>
+</label>
+<label>Responsável<input name="owner" value="{{.Form.Owner}}" required autocomplete="name">
+</label>
+<label>Título<input name="title" value="{{.Form.Title}}" required>
+</label>
+<label>Descrição<textarea name="description">{{.Form.Description}}</textarea>
+</label>
+<div class="grid">
+<label>Data<input type="text" name="day" value="{{dateBR .Form.Day}}" placeholder="dd/mm/aaaa" pattern="[0-9]{2}/[0-9]{2}/[0-9]{4}" required>
+</label>
+<label>Início<input type="time" name="starts" value="{{.Form.Starts}}" required>
+</label>
+<label>Fim<input type="time" name="ends" value="{{.Form.Ends}}" required>
+</label>
+</div>
+<button>Confirmar reserva</button>
+</form>
+</dialog>{{else}}
+<section class="card">
+<p>Cadastre a primeira sala para começar.</p>
+</section>{{end}}
+<script>if('serviceWorker'in navigator)navigator.serviceWorker.register('/static/sw.js')</script>
+</body>
+</html>{{end}}

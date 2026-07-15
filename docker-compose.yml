@@ -1,0 +1,8 @@
+services:
+  salas:
+    build: .
+    ports: ["8080:8080"]
+    volumes: ["salas-data:/data"]
+    restart: unless-stopped
+volumes:
+  salas-data:
