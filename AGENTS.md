@@ -15,6 +15,8 @@ Manter uma agenda de salas simples, rápida e segura, com Go, SQLite e páginas 
 
 Rode `go fmt ./...`, `go test ./...` e `go vet ./...`. Valide manualmente criação, conflito e cancelamento. Pull requests precisam manter esses comandos verdes e explicar qualquer dependência nova.
 
+Todo commit deve partir de uma solicitação explícita do usuário. O projeto segue versionamento semântico: consulte e atualize o arquivo `VERSION` em cada lançamento, e crie a respectiva tag Git no formato `vMAJOR.MINOR.PATCH`.
+
 ## Decisões
 
 As migrações são idempotentes no código; a aplicação não possui autenticação até que exista requisito de identidade e autorização. A agenda diária mantém sua data em cookie de sessão; notificações e dados de formulário após erro usam cookie temporário e não devem ser colocados na URL.
