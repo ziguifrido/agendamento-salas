@@ -68,11 +68,12 @@ func TestWeekdayBR(t *testing.T) {
 }
 
 func TestNavigateAgenda(t *testing.T) {
-	r := httptest.NewRequest("POST", "/agenda/next", nil)
+	r := httptest.NewRequest("POST", "/agenda/today", strings.NewReader("day=2026-07-16"))
+	r.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	r.AddCookie(&http.Cookie{Name: "agenda_day", Value: "2026-07-14"})
 	w := httptest.NewRecorder()
 	(&App{}).navigateAgenda(w, r)
-	if w.Code != http.StatusSeeOther || !strings.Contains(w.Header().Get("Set-Cookie"), "2026-07-15") {
+	if w.Code != http.StatusSeeOther || !strings.Contains(w.Header().Get("Set-Cookie"), "2026-07-16") {
 		t.Fatalf("unexpected navigation: %d %s", w.Code, w.Header().Get("Set-Cookie"))
 	}
 }

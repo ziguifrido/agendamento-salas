@@ -113,7 +113,11 @@ func (a *App) navigateAgenda(w http.ResponseWriter, r *http.Request) {
 	case "next":
 		d = d.AddDate(0, 0, 1)
 	case "today":
-		d = time.Now()
+		if today := dateISO(r.FormValue("day")); today != "" {
+			d, _ = time.Parse("2006-01-02", today)
+		} else {
+			d = time.Now()
+		}
 	default:
 		http.NotFound(w, r)
 		return

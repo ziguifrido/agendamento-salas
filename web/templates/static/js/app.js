@@ -77,13 +77,28 @@ let presentationMode = false;
 try { presentationMode = sessionStorage.getItem('presentation-mode') === 'true'; } catch {}
 let automaticRefresh = false;
 try { automaticRefresh = sessionStorage.getItem('automatic-refresh') === 'true'; } catch {}
+const localDay = () => {
+  const day = new Date();
+  return `${day.getFullYear()}-${String(day.getMonth() + 1).padStart(2, '0')}-${String(day.getDate()).padStart(2, '0')}`;
+};
+try {
+  if (!sessionStorage.getItem('automatic-refresh-day')) sessionStorage.setItem('automatic-refresh-day', localDay());
+} catch {}
 let automaticRefreshTimer;
 const scheduleAutomaticRefresh = () => {
   clearTimeout(automaticRefreshTimer);
   if (!presentationMode && !automaticRefresh) return;
-  automaticRefreshTimer = setTimeout(() => {
-    try { sessionStorage.setItem('automatic-refresh-notice', 'true'); } catch {}
-    location.reload();
+  automaticRefreshTimer = setTimeout(async () => {
+    const day = localDay();
+    try {
+      if (sessionStorage.getItem('automatic-refresh-day') !== day) {
+        await fetch('/agenda/today', { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams({ day }) });
+        sessionStorage.setItem('automatic-refresh-day', day);
+      }
+      sessionStorage.setItem('automatic-refresh-notice', 'true');
+    } catch {} finally {
+      location.reload();
+    }
   }, 30000);
 };
 const setPresentationMode = enabled => {
@@ -110,6 +125,21 @@ if (roomsDialog?.dataset.open !== undefined) roomsDialog.showModal();
 document.querySelector('#booking-form')?.addEventListener('submit', () => dialog.close());
 document.querySelectorAll('#agenda-filter select').forEach(select => select.addEventListener('change', () => select.form.requestSubmit()));
 const detailsDialog = document.querySelector('#booking-details-dialog');
+const detailCancelForm = document.querySelector('#booking-detail-cancel');
+const updateBookingStates = () => {
+  const now = new Date();
+  document.querySelectorAll('.booking-details').forEach(button => {
+    const booking = button.closest('.booking');
+    const start = new Date(`${button.dataset.dayIso}T${button.dataset.starts}:00`);
+    const end = new Date(`${button.dataset.dayIso}T${button.dataset.ends}:00`);
+    const past = end <= now;
+    booking.classList.toggle('past', past);
+    booking.classList.toggle('ongoing', start <= now && now < end);
+    booking.querySelector('.cancel-form')?.toggleAttribute('hidden', past);
+  });
+};
+updateBookingStates();
+setInterval(updateBookingStates, 60000);
 document.querySelectorAll('.booking-details').forEach(button => button.addEventListener('click', () => {
   const details = button.dataset;
   detailsDialog.querySelector('[data-detail="title"]').textContent = details.title;
@@ -118,6 +148,9 @@ document.querySelectorAll('.booking-details').forEach(button => button.addEventL
   detailsDialog.querySelector('[data-detail="time"]').textContent = `${details.starts}–${details.ends}`;
   detailsDialog.querySelector('[data-detail="owner"]').textContent = details.owner;
   detailsDialog.querySelector('[data-detail="description"]').textContent = details.description || 'Sem descrição.';
+  detailCancelForm.action = `/bookings/${details.id}/cancel`;
+  detailCancelForm.elements.day.value = details.dayIso;
+  detailCancelForm.toggleAttribute('hidden', new Date(`${details.dayIso}T${details.ends}:00`) <= new Date());
   detailsDialog.showModal();
 }));
 document.querySelectorAll('.edit-room').forEach(button => button.addEventListener('click', () => {
