@@ -90,6 +90,13 @@ button:disabled{
   border-right:1px solid var(--divider);
   display:flex;
   flex-direction:column}
+body.sidebar-collapsed{
+  --sidebar-width:68px}
+body.sidebar-collapsed .agenda-sidebar{
+  overflow:visible;
+  padding:var(--space-3)}
+body.sidebar-collapsed .agenda-filter{
+  display:none}
 .agenda-filter{
   display:grid;
   gap:var(--space-4)}
@@ -99,11 +106,12 @@ button:disabled{
   display:grid;
   gap:var(--space-2);
   margin:0}
-.sidebar-settings{
-  position:relative;
+.sidebar-actions{
+  display:grid;
+  gap:var(--space-2);
   width:44px;
   margin-top:auto}
-.sidebar-settings summary{
+#toggle-sidebar,.sidebar-settings summary{
   display:grid;
   width:44px;
   min-height:44px;
@@ -117,21 +125,30 @@ button:disabled{
   border-color:var(--border);
   font-size:24px;
   list-style:none}
+.sidebar-settings{
+  position:relative;
+  width:44px}
 .sidebar-settings summary::-webkit-details-marker{
   display:none}
-.sidebar-settings summary:hover{
+#toggle-sidebar{
+  margin:0;
+  font-size:18px}
+#toggle-sidebar:hover,.sidebar-settings summary:hover{
   background:var(--surface-secondary);
   color:var(--text)}
 .settings-menu{
   position:absolute;
   bottom:52px;
   left:0;
-  width:180px;
+  width:280px;
   padding:var(--space-2);
   background:var(--surface);
   border:1px solid var(--border);
   border-radius:var(--radius-md);
   box-shadow:var(--shadow-md)}
+.settings-menu > button,.settings-menu > label{
+  min-height:48px;
+  font-size:16px}
 .settings-menu button{
   margin:0;
   background:transparent;
@@ -140,6 +157,48 @@ button:disabled{
   text-align:left}
 .settings-menu button:hover{
   background:var(--surface-secondary)}
+.presentation-toggle,.automatic-refresh-toggle{
+  display:flex;
+  align-items:center;
+  gap:var(--space-2);
+  margin:0;
+  padding-inline:var(--space-3);
+  font-weight:400;
+  white-space:nowrap}
+.presentation-toggle input,.automatic-refresh-toggle input{
+  width:20px;
+  min-height:20px;
+  padding:0}
+#exit-presentation{
+  display:none}
+body.presentation main{
+  margin-left:0;
+  padding-inline:var(--space-8)}
+body.presentation .agenda-sidebar,body.presentation .new-booking,body.presentation .cancel-form{
+  display:none}
+body.presentation .booking-details{
+  cursor:default;
+  pointer-events:none}
+body.presentation .week-day h3{
+  margin-bottom:var(--space-6);
+  font-size:22px}
+body.presentation .week-day h3 span{
+  margin-top:var(--space-1);
+  font-size:16px}
+body.presentation #exit-presentation{
+  position:fixed;
+  top:var(--space-4);
+  right:var(--space-4);
+  z-index:2;
+  display:block;
+  width:auto;
+  margin:0;
+  background:var(--surface);
+  color:var(--text-muted);
+  border-color:var(--border)}
+body.presentation #exit-presentation:hover{
+  background:var(--surface-secondary);
+  color:var(--text)}
 .managed-rooms{
   display:grid;
   gap:var(--space-3);
@@ -246,9 +305,11 @@ button:disabled{
 .week-grid{
   display:grid;
   grid-template-columns:repeat(5,minmax(0,1fr));
-  gap:var(--space-3)}
+  grid-auto-rows:1fr;
+  gap:var(--space-3);
+  min-height:max(360px,calc(100vh - 320px))}
 .week-day{
-  min-height:360px;
+  min-height:100%;
   padding:var(--space-3);
   background:var(--surface-secondary);
   border:1px solid var(--divider);
@@ -394,4 +455,9 @@ dialog::backdrop{
   border:1px solid var(--border);
   border-radius:var(--radius-md);
   box-shadow:var(--shadow-sm)}
+body.sidebar-collapsed .agenda-sidebar{
+  width:auto;
+  padding:var(--space-6)}
+body.sidebar-collapsed .agenda-filter{
+  display:grid}
 }

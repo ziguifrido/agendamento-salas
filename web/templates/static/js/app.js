@@ -3,8 +3,24 @@ const roomDialog = document.querySelector('#room-dialog');
 const roomsDialog = document.querySelector('#rooms-dialog');
 const editRoomDialog = document.querySelector('#edit-room-dialog');
 const viewRoomDialog = document.querySelector('#view-room-dialog');
+const presentationToggle = document.querySelector('#presentation-toggle');
+const automaticRefreshToggle = document.querySelector('#automatic-refresh-toggle');
+const sidebarToggle = document.querySelector('#toggle-sidebar');
 
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('/static/sw.js');
+let sidebarCollapsed = false;
+try { sidebarCollapsed = sessionStorage.getItem('sidebar-collapsed') === 'true'; } catch {}
+const setSidebarCollapsed = collapsed => {
+  document.body.classList.toggle('sidebar-collapsed', collapsed);
+  sidebarToggle.textContent = collapsed ? '▶' : '◀';
+  sidebarToggle.setAttribute('aria-label', collapsed ? 'Ampliar painel lateral' : 'Esconder painel lateral');
+  sidebarToggle.title = sidebarToggle.getAttribute('aria-label');
+  try { sessionStorage.setItem('sidebar-collapsed', collapsed); } catch {}
+};
+if (sidebarToggle) {
+  setSidebarCollapsed(sidebarCollapsed);
+  sidebarToggle.addEventListener('click', () => setSidebarCollapsed(!document.body.classList.contains('sidebar-collapsed')));
+}
 const toastStack = document.createElement('div');
 toastStack.className = 'toast-stack';
 document.body.append(toastStack);
@@ -18,6 +34,12 @@ document.querySelectorAll('.toast').forEach(toast => {
   toasts.push({ id: `${now}-${Math.random()}`, kind: toast.classList.contains('error') ? 'error' : 'ok', text: toast.firstChild.textContent.trim(), expires: now + 5000 });
   toast.remove();
 });
+try {
+  if (sessionStorage.getItem('automatic-refresh-notice') === 'true') {
+    toasts.push({ id: `${now}-${Math.random()}`, kind: 'ok', text: 'Agenda atualizada automaticamente.', expires: now + 5000 });
+    sessionStorage.removeItem('automatic-refresh-notice');
+  }
+} catch {}
 const saveToasts = () => {
   try { sessionStorage.setItem(toastKey, JSON.stringify(toasts)); } catch {}
 };
@@ -50,6 +72,37 @@ document.querySelector('#new-room')?.addEventListener('click', button => {
 document.querySelector('#manage-rooms')?.addEventListener('click', button => {
   button.currentTarget.closest('details').open = false;
   roomsDialog.showModal();
+});
+let presentationMode = false;
+try { presentationMode = sessionStorage.getItem('presentation-mode') === 'true'; } catch {}
+let automaticRefresh = false;
+try { automaticRefresh = sessionStorage.getItem('automatic-refresh') === 'true'; } catch {}
+let automaticRefreshTimer;
+const scheduleAutomaticRefresh = () => {
+  clearTimeout(automaticRefreshTimer);
+  if (!presentationMode && !automaticRefresh) return;
+  automaticRefreshTimer = setTimeout(() => {
+    try { sessionStorage.setItem('automatic-refresh-notice', 'true'); } catch {}
+    location.reload();
+  }, 30000);
+};
+const setPresentationMode = enabled => {
+  document.body.classList.toggle('presentation', enabled);
+  try { sessionStorage.setItem('presentation-mode', enabled); } catch {}
+  scheduleAutomaticRefresh();
+};
+presentationToggle.checked = presentationMode;
+setPresentationMode(presentationMode);
+presentationToggle.addEventListener('change', () => setPresentationMode(presentationToggle.checked));
+automaticRefreshToggle.checked = automaticRefresh;
+automaticRefreshToggle.addEventListener('change', () => {
+  automaticRefresh = automaticRefreshToggle.checked;
+  try { sessionStorage.setItem('automatic-refresh', automaticRefresh); } catch {}
+  scheduleAutomaticRefresh();
+});
+document.querySelector('#exit-presentation').addEventListener('click', () => {
+  setPresentationMode(false);
+  location.reload();
 });
 if (dialog?.dataset.open !== undefined) dialog.showModal();
 if (roomDialog?.dataset.open !== undefined) roomDialog.showModal();
