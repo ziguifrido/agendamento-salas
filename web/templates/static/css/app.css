@@ -97,6 +97,51 @@ button:disabled{
 .section-title form{
   display:flex;
   gap:var(--space-2)}
+.agenda-filter{
+  flex:1;
+  max-width:480px}
+.agenda-filter .date-input{
+  flex:0 0 128px}
+.agenda-filter .search-input{
+  width:100%}
+.search-box{
+  position:relative;
+  flex:1}
+.search-box:has(.is-active) .search-input{
+  padding-right:44px}
+.agenda-filter .search-input.is-active{
+  background:var(--highlight);
+  border-color:var(--primary)}
+.clear-search{
+  position:absolute;
+  top:4px;
+  right:4px;
+  display:grid;
+  width:36px;
+  min-height:36px;
+  place-items:center;
+  border-radius:var(--radius-sm);
+  color:var(--text-muted);
+  font-size:24px;
+  line-height:1;
+  text-decoration:none}
+.clear-search:hover{
+  background:var(--surface);
+  color:var(--text)}
+.day-nav{
+  display:flex;
+  gap:var(--space-2)}
+.day-nav form{
+  margin:0}
+.day-nav button{
+  width:auto;
+  margin:0;
+  background:var(--surface);
+  border-color:var(--border);
+  color:var(--text-muted)}
+.day-nav button:hover{
+  background:var(--surface-secondary);
+  color:var(--text)}
 .section-title button{
   width:auto;
   margin:0}
@@ -201,4 +246,3 @@ dialog::backdrop{
 .section-title form input:first-child{
   grid-column:span 2}
 }
-
