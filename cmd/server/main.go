@@ -24,14 +24,18 @@ type Booking struct {
 	ID, RoomID                                         int
 	Room, Owner, Title, Description, Day, Starts, Ends string
 }
+type AgendaDay struct {
+	Day      string
+	Bookings []Booking
+}
 type App struct {
 	db        *sql.DB
 	templates *template.Template
 	log       *slog.Logger
 }
 type flash struct {
-	Message, Error string
-	Form           Booking
+	Message, Error, RoomError, RoomDialog string
+	Form                                  Booking
 }
 
 func main() {
@@ -50,12 +54,13 @@ func main() {
 	if err := migrate(db); err != nil {
 		panic(err)
 	}
-	t := template.Must(template.New("").Funcs(template.FuncMap{"now": func() string { return time.Now().Format("2006-01-02") }, "dateBR": dateBR}).ParseGlob("web/templates/*.html"))
+	t := template.Must(template.New("").Funcs(template.FuncMap{"now": func() string { return time.Now().Format("2006-01-02") }, "dateBR": dateBR, "weekdayBR": weekdayBR}).ParseGlob("web/templates/*.html"))
 	a := &App{db: db, templates: t, log: slog.New(slog.NewJSONHandler(os.Stdout, nil))}
 	mux := http.NewServeMux()
 	mux.Handle("/static/", http.StripPrefix("/static/", http.FileServer(http.Dir("web/templates/static"))))
 	mux.HandleFunc("/", a.dashboard)
 	mux.HandleFunc("/rooms", a.rooms)
+	mux.HandleFunc("/rooms/", a.roomAction)
 	mux.HandleFunc("/agenda/", a.navigateAgenda)
 	mux.HandleFunc("/bookings", a.bookings)
 	mux.HandleFunc("/bookings/", a.bookingAction)
@@ -108,7 +113,11 @@ func (a *App) navigateAgenda(w http.ResponseWriter, r *http.Request) {
 	case "next":
 		d = d.AddDate(0, 0, 1)
 	case "today":
-		d = time.Now()
+		if today := dateISO(r.FormValue("day")); today != "" {
+			d, _ = time.Parse("2006-01-02", today)
+		} else {
+			d = time.Now()
+		}
 	default:
 		http.NotFound(w, r)
 		return
@@ -135,7 +144,26 @@ func (a *App) data(w http.ResponseWriter, r *http.Request) map[string]any {
 		f.Form.Day = day
 	}
 	query := strings.TrimSpace(r.URL.Query().Get("q"))
-	return map[string]any{"Day": day, "Form": f.Form, "Query": query, "Rooms": a.roomList(), "Bookings": a.bookingList(day, query), "Message": f.Message, "Error": f.Error}
+	view := r.URL.Query().Get("view")
+	if view == "day" || view == "week" {
+		setAgendaView(w, view)
+	} else {
+		view = agendaView(r)
+	}
+	if view == "" {
+		view = "day"
+	}
+	roomID, _ := strconv.Atoi(r.URL.Query().Get("room_id"))
+	if r.URL.Query().Has("room_id") {
+		setAgendaRoom(w, roomID)
+	} else {
+		roomID = agendaRoom(r)
+	}
+	data := map[string]any{"Day": day, "View": view, "RoomID": roomID, "Form": f.Form, "Query": query, "Rooms": a.roomList(), "Bookings": a.bookingList(day, roomID, query), "Message": f.Message, "Error": f.Error, "RoomError": f.RoomError, "RoomDialog": f.RoomDialog}
+	if view == "week" {
+		data["Week"] = a.weekAgenda(day, roomID, query)
+	}
+	return data
 }
 func (a *App) roomList() []Room {
 	rows, err := a.db.Query("SELECT id,name,description,capacity,location,resources FROM rooms ORDER BY name")
@@ -155,8 +183,8 @@ func (a *App) roomList() []Room {
 	}
 	return out
 }
-func (a *App) bookingList(day, q string) []Booking {
-	rows, err := a.db.Query(`SELECT b.id,b.room_id,r.name,b.owner,b.title,b.description,b.day,b.starts,b.ends FROM bookings b JOIN rooms r ON r.id=b.room_id WHERE b.day=? AND (?='' OR r.name LIKE ? OR b.owner LIKE ? OR b.title LIKE ?) ORDER BY b.starts`, day, q, "%"+q+"%", "%"+q+"%", "%"+q+"%")
+func (a *App) bookingList(day string, roomID int, q string) []Booking {
+	rows, err := a.db.Query(`SELECT b.id,b.room_id,r.name,b.owner,b.title,b.description,b.day,b.starts,b.ends FROM bookings b JOIN rooms r ON r.id=b.room_id WHERE b.day=? AND (?=0 OR b.room_id=?) AND (?='' OR r.name LIKE ? OR b.owner LIKE ? OR b.title LIKE ?) ORDER BY b.starts`, day, roomID, roomID, q, "%"+q+"%", "%"+q+"%", "%"+q+"%")
 	if err != nil {
 		return nil
 	}
@@ -173,23 +201,89 @@ func (a *App) bookingList(day, q string) []Booking {
 	}
 	return out
 }
+func (a *App) weekAgenda(day string, roomID int, q string) []AgendaDay {
+	start := weekStart(day)
+	out := make([]AgendaDay, 5)
+	for i := range out {
+		out[i].Day = start.AddDate(0, 0, i).Format("2006-01-02")
+	}
+	rows, err := a.db.Query(`SELECT b.id,b.room_id,r.name,b.owner,b.title,b.description,b.day,b.starts,b.ends FROM bookings b JOIN rooms r ON r.id=b.room_id WHERE b.day>=? AND b.day<? AND (?=0 OR b.room_id=?) AND (?='' OR r.name LIKE ? OR b.owner LIKE ? OR b.title LIKE ?) ORDER BY b.day,b.starts`, out[0].Day, start.AddDate(0, 0, 5).Format("2006-01-02"), roomID, roomID, q, "%"+q+"%", "%"+q+"%", "%"+q+"%")
+	if err != nil {
+		return out
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var b Booking
+		if rows.Scan(&b.ID, &b.RoomID, &b.Room, &b.Owner, &b.Title, &b.Description, &b.Day, &b.Starts, &b.Ends) == nil {
+			for i := range out {
+				if out[i].Day == b.Day {
+					out[i].Bookings = append(out[i].Bookings, b)
+					break
+				}
+			}
+		}
+	}
+	if rows.Err() != nil {
+		return out
+	}
+	return out
+}
 func (a *App) rooms(w http.ResponseWriter, r *http.Request) {
 	if r.Method == http.MethodPost {
 		name := strings.TrimSpace(r.FormValue("name"))
 		cap := r.FormValue("capacity")
 		if name == "" || cap == "" {
-			a.redirect(w, r, "", "Preencha nome e capacidade")
+			a.redirectRoom(w, r, "", "Preencha nome e capacidade")
 			return
 		}
 		_, err := a.db.Exec("INSERT INTO rooms(name,description,capacity,location,resources) VALUES(?,?,?,?,?)", name, strings.TrimSpace(r.FormValue("description")), cap, strings.TrimSpace(r.FormValue("location")), strings.TrimSpace(r.FormValue("resources")))
 		if err != nil {
-			a.redirect(w, r, "", "Sala já existe ou capacidade inválida")
+			a.redirectRoom(w, r, "", "Sala já existe ou capacidade inválida")
 			return
 		}
-		a.redirect(w, r, "Sala criada", "")
+		a.redirectRoom(w, r, "Sala criada", "")
 		return
 	}
-	a.render(w, "rooms.html", map[string]any{"Rooms": a.roomList()})
+	http.Redirect(w, r, "/", http.StatusSeeOther)
+}
+func (a *App) roomAction(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.NotFound(w, r)
+		return
+	}
+	parts := strings.Split(strings.TrimPrefix(r.URL.Path, "/rooms/"), "/")
+	if len(parts) != 2 {
+		http.NotFound(w, r)
+		return
+	}
+	id, err := strconv.Atoi(parts[0])
+	if err != nil || id < 1 {
+		http.NotFound(w, r)
+		return
+	}
+	switch parts[1] {
+	case "edit":
+		name, capacity := strings.TrimSpace(r.FormValue("name")), r.FormValue("capacity")
+		if name == "" || capacity == "" {
+			a.redirectManage(w, r, "", "Preencha nome e capacidade")
+			return
+		}
+		_, err = a.db.Exec("UPDATE rooms SET name=?,description=?,capacity=?,location=?,resources=? WHERE id=?", name, strings.TrimSpace(r.FormValue("description")), capacity, strings.TrimSpace(r.FormValue("location")), strings.TrimSpace(r.FormValue("resources")), id)
+		if err != nil {
+			a.redirectManage(w, r, "", "Sala já existe ou capacidade inválida")
+			return
+		}
+		a.redirectManage(w, r, "Sala atualizada", "")
+	case "delete":
+		_, err = a.db.Exec("DELETE FROM rooms WHERE id=?", id)
+		if err != nil {
+			a.redirectManage(w, r, "", "Não é possível excluir uma sala com agendamentos")
+			return
+		}
+		a.redirectManage(w, r, "Sala excluída", "")
+	default:
+		http.NotFound(w, r)
+	}
 }
 func (a *App) bookings(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
@@ -256,6 +350,18 @@ func dateBR(day string) string {
 	}
 	return d.Format("02/01/2006")
 }
+func weekdayBR(day string) string {
+	d, err := time.Parse("2006-01-02", day)
+	if err != nil {
+		return ""
+	}
+	return []string{"Domingo", "Segunda-feira", "Terça-feira", "Quarta-feira", "Quinta-feira", "Sexta-feira", "Sábado"}[d.Weekday()]
+}
+func weekStart(day string) time.Time {
+	d, _ := time.Parse("2006-01-02", day)
+	offset := (int(d.Weekday()) + 6) % 7
+	return d.AddDate(0, 0, -offset)
+}
 func (a *App) redirect(w http.ResponseWriter, r *http.Request, msg, problem string) {
 	f := flash{Message: msg, Error: problem, Form: Booking{Day: dateISO(r.FormValue("day"))}}
 	if f.Form.Day == "" {
@@ -267,6 +373,22 @@ func (a *App) redirect(w http.ResponseWriter, r *http.Request, msg, problem stri
 	}
 	setFlash(w, f)
 	setAgendaDay(w, f.Form.Day)
+	http.Redirect(w, r, "/", http.StatusSeeOther)
+}
+func (a *App) redirectRoom(w http.ResponseWriter, r *http.Request, msg, problem string) {
+	dialog := ""
+	if problem != "" {
+		dialog = "create"
+	}
+	setFlash(w, flash{Message: msg, RoomError: problem, RoomDialog: dialog})
+	http.Redirect(w, r, "/", http.StatusSeeOther)
+}
+func (a *App) redirectManage(w http.ResponseWriter, r *http.Request, msg, problem string) {
+	dialog := ""
+	if problem != "" {
+		dialog = "manage"
+	}
+	setFlash(w, flash{Message: msg, RoomError: problem, RoomDialog: dialog})
 	http.Redirect(w, r, "/", http.StatusSeeOther)
 }
 func setFlash(w http.ResponseWriter, f flash) {
@@ -294,6 +416,27 @@ func agendaDay(r *http.Request) string {
 		return ""
 	}
 	return dateISO(c.Value)
+}
+func setAgendaView(w http.ResponseWriter, view string) {
+	http.SetCookie(w, &http.Cookie{Name: "agenda_view", Value: view, Path: "/", HttpOnly: true, SameSite: http.SameSiteLaxMode})
+}
+func agendaView(r *http.Request) string {
+	c, err := r.Cookie("agenda_view")
+	if err != nil {
+		return ""
+	}
+	return c.Value
+}
+func setAgendaRoom(w http.ResponseWriter, roomID int) {
+	http.SetCookie(w, &http.Cookie{Name: "agenda_room", Value: strconv.Itoa(roomID), Path: "/", HttpOnly: true, SameSite: http.SameSiteLaxMode})
+}
+func agendaRoom(r *http.Request) int {
+	c, err := r.Cookie("agenda_room")
+	if err != nil {
+		return 0
+	}
+	n, _ := strconv.Atoi(c.Value)
+	return n
 }
 func (a *App) render(w http.ResponseWriter, name string, data any) {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")

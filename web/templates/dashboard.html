@@ -7,6 +7,7 @@
 <link rel="manifest" href="/static/manifest.webmanifest">
 <link rel="stylesheet" href="/static/css/tokens.css">
 <link rel="stylesheet" href="/static/css/app.css">
+<meta name="htmx-config" content='{"includeIndicatorStyles":false}'>
 <script src="/static/js/htmx.js" defer>
 </script>
 <script src="/static/js/app.js" defer>
@@ -15,10 +16,6 @@
 </head>
 <body>{{if .Message}}<div class="toast ok" role="status">{{.Message}}<button class="toast-close" aria-label="Fechar notificação">×</button>
 </div>{{end}}
-<header>
-<a href="/">Salas</a>
-<a href="/rooms">Cadastrar sala</a>
-</header>
 <main>
 <div class="page-title">
 <div>
@@ -26,34 +23,32 @@
 <p class="muted">Veja a disponibilidade e crie reservas.</p>
 </div>{{if .Rooms}}<button id="new-booking" class="new-booking">Nova reserva</button>{{end}}
 </div>
-<section>
-<div class="section-title">
-<div>
-<h2>Agenda diária</h2>
-</div>
-<div class="day-nav">
-<form method="post" action="/agenda/previous"><button aria-label="Dia anterior" title="Dia anterior">←</button></form>
-<form method="post" action="/agenda/today"><button>Hoje</button></form>
-<form method="post" action="/agenda/next"><button aria-label="Próximo dia" title="Próximo dia">→</button></form>
-</div>
-<form class="agenda-filter">
-<input class="date-input" type="date" name="day" value="{{.Day}}" aria-label="Data">
-<span class="search-box"><input class="search-input {{if .Query}}is-active{{end}}" name="q" value="{{.Query}}" placeholder="Pesquisar" aria-label="Pesquisar">{{if .Query}}<a class="clear-search" href="/" aria-label="Limpar pesquisa" title="Limpar pesquisa">×</a>{{end}}</span>
-<button>Ver</button>
+<section class="agenda-layout">
+<aside class="agenda-sidebar">
+<form id="agenda-filter" class="agenda-filter">
+<h2>Filtros</h2>
+<label>Tipo de agenda<select name="view"><option value="day" {{if eq .View "day"}}selected{{end}}>Agenda diária</option><option value="week" {{if eq .View "week"}}selected{{end}}>Agenda semanal</option></select></label>
+<label>Data<input type="date" name="day" value="{{.Day}}"></label>
+<label>Sala<select name="room_id"><option value="0">Todas as salas</option>{{range .Rooms}}<option value="{{.ID}}" {{if eq .ID $.RoomID}}selected{{end}}>{{.Name}}</option>{{end}}</select></label>
+<label>Pesquisar<span class="search-box"><input class="search-input {{if .Query}}is-active{{end}}" name="q" value="{{.Query}}" placeholder="Reunião, Responsável" aria-label="Pesquisar">{{if .Query}}<a class="clear-search" href="/" aria-label="Limpar pesquisa" title="Limpar pesquisa">×</a>{{end}}</span></label>
+<button>Pesquisar</button>
 </form>
-</div>{{if .Bookings}}<div class="bookings">{{range .Bookings}}<article class="booking">
-<div>
+<div class="sidebar-actions"><button id="toggle-sidebar" type="button" aria-label="Esconder painel lateral" title="Esconder painel lateral">◀</button><details class="sidebar-settings"><summary aria-label="Configurações" title="Configurações">⚙</summary><div class="settings-menu"><button id="new-room" type="button">Cadastrar sala</button><button id="manage-rooms" type="button">Gerenciar salas</button><label class="theme-select">Tema<select id="theme-select" aria-label="Tema"><option value="auto">Automático</option><option value="light">Claro</option><option value="dark">Escuro</option></select></label><label class="presentation-toggle"><input id="presentation-toggle" type="checkbox" role="switch"> Modo apresentação</label><label class="automatic-refresh-toggle"><input id="automatic-refresh-toggle" type="checkbox" role="switch"> Atualização automática (30s)</label></div></details></div>
+</aside>
+<button id="exit-presentation" type="button">Encerrar apresentação</button>
+<div class="agenda-view"><nav class="day-nav" aria-label="Navegação da agenda"><form method="post" action="/agenda/previous"><button aria-label="Dia anterior" title="Dia anterior">←</button></form><form method="post" action="/agenda/today"><button>Hoje</button></form><form method="post" action="/agenda/next"><button aria-label="Próximo dia" title="Próximo dia">→</button></form></nav>{{if eq .View "week"}}<div class="week-grid">{{range .Week}}<section class="week-day{{if eq .Day $.Day}} selected{{end}}"><h3>{{weekdayBR .Day}}<span>{{dateBR .Day}}</span></h3>{{range .Bookings}}<article class="booking"><button class="booking-details" data-id="{{.ID}}" data-room="{{.Room}}" data-title="{{.Title}}" data-owner="{{.Owner}}" data-day="{{dateBR .Day}}" data-day-iso="{{.Day}}" data-starts="{{.Starts}}" data-ends="{{.Ends}}" data-description="{{.Description}}" aria-label="Ver detalhes de {{.Title}}"><strong>{{.Starts}}–{{.Ends}} · {{.Room}}</strong><br>{{.Title}} <span class="muted">· {{.Owner}}</span></button></article>{{else}}<p class="free">Salas livres</p>{{end}}</section>{{end}}</div>{{else}}{{if .Bookings}}<div class="bookings">{{range .Bookings}}<article class="booking">
+<button class="booking-details" data-id="{{.ID}}" data-room="{{.Room}}" data-title="{{.Title}}" data-owner="{{.Owner}}" data-day="{{dateBR .Day}}" data-day-iso="{{.Day}}" data-starts="{{.Starts}}" data-ends="{{.Ends}}" data-description="{{.Description}}" aria-label="Ver detalhes de {{.Title}}">
 <strong>{{.Starts}}–{{.Ends}} · {{.Room}}</strong>
 <br>{{.Title}} <span class="muted">· {{.Owner}}</span>{{if .Description}}<p>{{.Description}}</p>{{end}}
-</div>
+</button>
 <form class="cancel-form" method="post" action="/bookings/{{.ID}}/cancel">
 <input type="hidden" name="day" value="{{dateBR $.Day}}">
 <button class="danger">Cancelar</button>
 </form>
 </article>{{end}}
 </div>{{else}}
-{{if .Query}}<p class="empty">Nenhum agendamento encontrado para “{{.Query}}”.</p>{{else}}<p class="empty">Nenhuma reserva para esta data. Todas as salas estão livres.</p>{{end}}{{end}}
-</section>
+{{if .Query}}<p class="empty">Nenhum agendamento encontrado para “{{.Query}}”.</p>{{else}}<p class="empty">Nenhuma reserva para esta data. Todas as salas estão livres.</p>{{end}}{{end}}{{end}}
+</div></section>
 </main>{{if .Rooms}}<dialog id="booking-dialog" {{if .Error}}data-open{{end}}
 >{{if .Error}}<div class="toast error" role="alert">{{.Error}}<button class="toast-close" aria-label="Fechar notificação">×</button>
 </div>{{end}}
@@ -84,10 +79,14 @@
 </div>
 <button>Confirmar reserva</button>
 </form>
-</dialog>{{else}}
+</dialog>
+<dialog id="booking-details-dialog"><div class="dialog-title"><h2 data-detail="title">Detalhes da reserva</h2><form method="dialog"><button class="close" aria-label="Fechar">×</button></form></div><dl class="booking-detail-list"><div><dt>Sala</dt><dd data-detail="room"></dd></div><div><dt>Data</dt><dd data-detail="day"></dd></div><div><dt>Horário</dt><dd data-detail="time"></dd></div><div><dt>Responsável</dt><dd data-detail="owner"></dd></div><div><dt>Descrição</dt><dd data-detail="description"></dd></div></dl><form id="booking-detail-cancel" class="cancel-form" method="post"><input name="day" type="hidden"><button class="danger">Cancelar</button></form></dialog>{{else}}
 <section class="card">
 <p>Cadastre a primeira sala para começar.</p>
 </section>{{end}}
-<script>if('serviceWorker'in navigator)navigator.serviceWorker.register('/static/sw.js')</script>
+<dialog id="room-dialog" {{if eq .RoomDialog "create"}}data-open{{end}}>{{if and .RoomError (eq .RoomDialog "create")}}<div class="toast error" role="alert">{{.RoomError}}<button class="toast-close" aria-label="Fechar notificação">×</button></div>{{end}}<div class="dialog-title"><h2>Cadastrar sala</h2><form method="dialog"><button class="close" aria-label="Fechar">×</button></form></div><form id="room-form" method="post" action="/rooms"><label>Nome<input name="name" required></label><div class="grid"><label>Capacidade<input type="number" min="1" name="capacity" required></label><label>Localização<input name="location"></label></div><label>Recursos<input name="resources" placeholder="TV, projetor, quadro branco"></label><label>Descrição<textarea name="description"></textarea></label><button>Cadastrar sala</button></form></dialog>
+<dialog id="rooms-dialog" {{if eq .RoomDialog "manage"}}data-open{{end}}>{{if and .RoomError (eq .RoomDialog "manage")}}<div class="toast error" role="alert">{{.RoomError}}<button class="toast-close" aria-label="Fechar notificação">×</button></div>{{end}}<div class="dialog-title"><h2>Gerenciar salas</h2><form method="dialog"><button class="close" aria-label="Fechar">×</button></form></div><div class="managed-rooms">{{range .Rooms}}<article class="managed-room"><div><strong>{{.Name}}</strong><br><span class="muted">{{.Capacity}} pessoas{{if .Location}} · {{.Location}}{{end}}</span></div><div class="room-actions"><button class="view-room" type="button" data-name="{{.Name}}" data-capacity="{{.Capacity}}" data-location="{{.Location}}" data-resources="{{.Resources}}" data-description="{{.Description}}">Visualizar</button><button class="edit-room" type="button" data-id="{{.ID}}" data-name="{{.Name}}" data-capacity="{{.Capacity}}" data-location="{{.Location}}" data-resources="{{.Resources}}" data-description="{{.Description}}">Editar</button><form class="delete-room" method="post" action="/rooms/{{.ID}}/delete"><button>Excluir</button></form></div></article>{{else}}<p class="empty">Nenhuma sala cadastrada.</p>{{end}}</div></dialog>
+<dialog id="edit-room-dialog"><div class="dialog-title"><h2>Editar sala</h2><form method="dialog"><button class="close" aria-label="Fechar">×</button></form></div><form id="edit-room-form" method="post"><label>Nome<input name="name" required></label><div class="grid"><label>Capacidade<input type="number" min="1" name="capacity" required></label><label>Localização<input name="location"></label></div><label>Recursos<input name="resources"></label><label>Descrição<textarea name="description"></textarea></label><button>Salvar alterações</button></form></dialog>
+<dialog id="view-room-dialog"><div class="dialog-title"><h2 data-room-detail="name">Sala</h2><form method="dialog"><button class="close" aria-label="Fechar">×</button></form></div><dl class="room-detail-list"><div><dt>Capacidade</dt><dd data-room-detail="capacity"></dd></div><div><dt>Localização</dt><dd data-room-detail="location"></dd></div><div><dt>Recursos</dt><dd data-room-detail="resources"></dd></div><div><dt>Descrição</dt><dd data-room-detail="description"></dd></div></dl></dialog>
 </body>
 </html>{{end}}

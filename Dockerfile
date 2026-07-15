@@ -9,6 +9,7 @@ RUN adduser -D -u 10001 app
 COPY --from=build /salas /usr/local/bin/salas
 COPY --from=build /app/web /app/web
 WORKDIR /app
+RUN mkdir -p /data && chown app:app /data
 USER app
 ENV DATABASE_PATH=/data/reservas.db
 VOLUME /data

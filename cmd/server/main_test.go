@@ -1,12 +1,36 @@
 package main
 
 import (
+	"database/sql"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
 	"strings"
 	"testing"
 )
+
+func TestRoomActionDeletesRoom(t *testing.T) {
+	db, err := sql.Open("sqlite", ":memory:")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	if err := migrate(db); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.Exec("INSERT INTO rooms(name,capacity) VALUES('Sala 1',10)"); err != nil {
+		t.Fatal(err)
+	}
+	w := httptest.NewRecorder()
+	(&App{db: db}).roomAction(w, httptest.NewRequest(http.MethodPost, "/rooms/1/delete", nil))
+	if w.Code != http.StatusSeeOther {
+		t.Fatalf("got status %d", w.Code)
+	}
+	var count int
+	if err := db.QueryRow("SELECT COUNT(*) FROM rooms").Scan(&count); err != nil || count != 0 {
+		t.Fatalf("room was not deleted: %d, %v", count, err)
+	}
+}
 
 func TestValidBooking(t *testing.T) {
 	if !validBooking("2999-01-01", "09:00", "10:00") {
@@ -31,12 +55,25 @@ func TestDateISO(t *testing.T) {
 	}
 }
 
+func TestWeekStart(t *testing.T) {
+	if got := weekStart("2026-07-15").Format("2006-01-02"); got != "2026-07-13" {
+		t.Fatalf("got %q", got)
+	}
+}
+
+func TestWeekdayBR(t *testing.T) {
+	if got := weekdayBR("2026-07-15"); got != "Quarta-feira" {
+		t.Fatalf("got %q", got)
+	}
+}
+
 func TestNavigateAgenda(t *testing.T) {
-	r := httptest.NewRequest("POST", "/agenda/next", nil)
+	r := httptest.NewRequest("POST", "/agenda/today", strings.NewReader("day=2026-07-16"))
+	r.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	r.AddCookie(&http.Cookie{Name: "agenda_day", Value: "2026-07-14"})
 	w := httptest.NewRecorder()
 	(&App{}).navigateAgenda(w, r)
-	if w.Code != http.StatusSeeOther || !strings.Contains(w.Header().Get("Set-Cookie"), "2026-07-15") {
+	if w.Code != http.StatusSeeOther || !strings.Contains(w.Header().Get("Set-Cookie"), "2026-07-16") {
 		t.Fatalf("unexpected navigation: %d %s", w.Code, w.Header().Get("Set-Cookie"))
 	}
 }
