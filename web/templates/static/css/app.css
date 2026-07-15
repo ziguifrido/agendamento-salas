@@ -1,27 +1,15 @@
 *{
   box-sizing:border-box}
 body{
+  --sidebar-width:320px;
   margin:0;
   background:var(--bg);
   color:var(--text);
   font-family:Inter,system-ui,sans-serif;
   font-size:16px;
   line-height:1.5}
-header{
-  background:var(--surface);
-  border-bottom:1px solid var(--divider);
-  padding:var(--space-4) max(var(--space-4),calc((100% - 960px)/2));
-  display:flex;
-  gap:var(--space-6)}
-header a{
-  color:var(--primary);
-  text-decoration:none;
-  font-weight:600}
-header a:hover{
-  color:var(--primary-hover)}
 main{
-  max-width:960px;
-  margin:auto;
+  margin-left:var(--sidebar-width);
   padding:var(--space-8) var(--space-4) var(--space-16)}
 .page-title{
   display:flex;
@@ -88,25 +76,117 @@ button:disabled{
 .new-booking{
   width:auto;
   padding-inline:var(--space-6)}
-.section-title{
+.agenda-layout{
+  display:block}
+.agenda-sidebar{
+  position:fixed;
+  top:0;
+  bottom:0;
+  left:0;
+  width:var(--sidebar-width);
+  overflow-y:auto;
+  padding:var(--space-6);
+  background:var(--surface);
+  border-right:1px solid var(--divider);
+  display:flex;
+  flex-direction:column}
+.agenda-filter{
+  display:grid;
+  gap:var(--space-4)}
+.agenda-filter h2{
+  margin:0}
+.agenda-filter label{
+  display:grid;
+  gap:var(--space-2);
+  margin:0}
+.sidebar-settings{
+  position:relative;
+  width:44px;
+  margin-top:auto}
+.sidebar-settings summary{
+  display:grid;
+  width:44px;
+  min-height:44px;
+  place-items:center;
+  padding:0;
+  background:transparent;
+  color:var(--text-muted);
+  border:1px solid var(--border);
+  border-radius:var(--radius-sm);
+  cursor:pointer;
+  border-color:var(--border);
+  font-size:24px;
+  list-style:none}
+.sidebar-settings summary::-webkit-details-marker{
+  display:none}
+.sidebar-settings summary:hover{
+  background:var(--surface-secondary);
+  color:var(--text)}
+.settings-menu{
+  position:absolute;
+  bottom:52px;
+  left:0;
+  width:180px;
+  padding:var(--space-2);
+  background:var(--surface);
+  border:1px solid var(--border);
+  border-radius:var(--radius-md);
+  box-shadow:var(--shadow-md)}
+.settings-menu button{
+  margin:0;
+  background:transparent;
+  color:var(--text);
+  border:0;
+  text-align:left}
+.settings-menu button:hover{
+  background:var(--surface-secondary)}
+.managed-rooms{
+  display:grid;
+  gap:var(--space-3);
+  margin-top:var(--space-6)}
+.managed-room{
   display:flex;
   align-items:center;
   justify-content:space-between;
   gap:var(--space-4);
-  margin-bottom:var(--space-4)}
-.section-title form{
+  padding:var(--space-3);
+  background:var(--surface-secondary);
+  border-radius:var(--radius-sm)}
+.room-actions{
   display:flex;
   gap:var(--space-2)}
-.agenda-filter{
-  flex:1;
-  max-width:480px}
-.agenda-filter .date-input{
-  flex:0 0 128px}
+.room-actions form{
+  margin:0}
+.room-actions button{
+  width:auto;
+  margin:0;
+  background:transparent;
+  color:var(--text-muted);
+  border-color:var(--border)}
+.room-actions button:hover{
+  background:var(--surface);
+  color:var(--text)}
+.room-actions .view-room{
+  color:var(--primary);
+  border-color:var(--primary);
+  background:color-mix(in srgb,var(--primary),transparent 90%)}
+.room-actions .edit-room{
+  color:var(--secondary);
+  border-color:var(--secondary);
+  background:color-mix(in srgb,var(--secondary),transparent 90%)}
+.room-actions .delete-room button{
+  color:var(--error);
+  border-color:var(--error);
+  background:color-mix(in srgb,var(--error),transparent 90%)}
+.room-actions .view-room:hover,.room-actions .edit-room:hover,.room-actions .delete-room button:hover{
+  background:var(--surface)}
+.agenda-view{
+  min-width:0}
 .agenda-filter .search-input{
   width:100%}
 .search-box{
   position:relative;
-  flex:1}
+  display:block}
 .search-box:has(.is-active) .search-input{
   padding-right:44px}
 .agenda-filter .search-input.is-active{
@@ -129,12 +209,17 @@ button:disabled{
   background:var(--surface);
   color:var(--text)}
 .day-nav{
-  display:flex;
+  display:grid;
+  grid-template-columns:repeat(3,1fr);
+  margin-top:var(--space-4);
   gap:var(--space-2)}
+.agenda-view .day-nav{
+  max-width:320px;
+  margin:0 auto var(--space-4)}
 .day-nav form{
   margin:0}
 .day-nav button{
-  width:auto;
+  width:100%;
   margin:0;
   background:var(--surface);
   border-color:var(--border);
@@ -142,14 +227,48 @@ button:disabled{
 .day-nav button:hover{
   background:var(--surface-secondary);
   color:var(--text)}
-.section-title button{
-  width:auto;
-  margin:0}
 .booking{
   display:flex;
   justify-content:space-between;
   gap:var(--space-4);
   align-items:center}
+.booking-details{
+  flex:1;
+  margin:0;
+  padding:0;
+  color:inherit;
+  text-align:left;
+  background:transparent;
+  border:0}
+.booking-details:hover{
+  background:transparent;
+  color:inherit}
+.week-grid{
+  display:grid;
+  grid-template-columns:repeat(5,minmax(0,1fr));
+  gap:var(--space-3)}
+.week-day{
+  min-height:360px;
+  padding:var(--space-3);
+  background:var(--surface-secondary);
+  border:1px solid var(--divider);
+  border-radius:var(--radius-md)}
+.week-day.selected{
+  border:2px solid var(--primary)}
+.week-day h3{
+  margin:0 0 var(--space-3);
+  font-size:14px}
+.week-day h3 span{
+  display:block;
+  color:var(--text-muted);
+  font-weight:400}
+.week-day .booking{
+  margin:var(--space-2) 0;
+  padding:var(--space-2);
+  font-size:14px}
+.free{
+  color:var(--text-muted);
+  font-size:14px}
 .booking form{
   flex:none}
 .booking button{
@@ -160,17 +279,27 @@ button:disabled{
 .booking button:hover{
   background:var(--surface-secondary);
   color:var(--text)}
+.booking .booking-details,
+.booking .booking-details:hover{
+  color:inherit;
+  border:0;
+  background:transparent}
 .empty{
   padding:var(--space-8);
   text-align:center;
   color:var(--text-muted);
   background:var(--surface-secondary);
   border-radius:var(--radius-md)}
-.toast{
+.toast-stack{
   position:fixed;
   top:var(--space-4);
   right:var(--space-4);
   z-index:9999;
+  display:grid;
+  gap:var(--space-2);
+  width:min(400px,calc(100vw - 32px))}
+.toast{
+  position:relative;
   max-width:min(400px,calc(100vw - 32px));
   padding:var(--space-4) var(--space-12) var(--space-4) var(--space-4);
   border:1px solid var(--border);
@@ -214,6 +343,18 @@ dialog::backdrop{
   justify-content:space-between}
 .dialog-title h2{
   margin:0}
+.booking-detail-list,.room-detail-list{
+  display:grid;
+  gap:var(--space-4);
+  margin:var(--space-6) 0 0}
+.booking-detail-list div,.room-detail-list div{
+  display:grid;
+  gap:var(--space-1)}
+.booking-detail-list dt,.room-detail-list dt{
+  color:var(--text-muted);
+  font-size:14px}
+.booking-detail-list dd,.room-detail-list dd{
+  margin:0}
 .close{
   background:transparent;
   color:var(--text-muted);
@@ -225,12 +366,15 @@ dialog::backdrop{
 .close:hover{
   background:var(--surface-secondary);
   color:var(--text)}
-@media(max-width:600px){
+@media(max-width:800px){
+  body{
+    --sidebar-width:0px}
   main{
+  margin-left:0;
   padding-top:var(--space-6)}
 .grid{
   grid-template-columns:1fr}
-.page-title,.section-title{
+.page-title{
   align-items:stretch;
   flex-direction:column}
 .new-booking{
@@ -240,9 +384,14 @@ dialog::backdrop{
   flex-direction:column}
 .booking button{
   width:100%}
-.section-title form{
-  display:grid;
-  grid-template-columns:1fr 1fr}
-.section-title form input:first-child{
-  grid-column:span 2}
+.agenda-layout{
+  grid-template-columns:1fr}
+.agenda-sidebar{
+  position:static;
+  width:auto;
+  overflow:visible;
+  margin-bottom:var(--space-6);
+  border:1px solid var(--border);
+  border-radius:var(--radius-md);
+  box-shadow:var(--shadow-sm)}
 }
