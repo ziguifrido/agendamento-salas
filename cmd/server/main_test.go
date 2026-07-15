@@ -1,12 +1,36 @@
 package main
 
 import (
+	"database/sql"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
 	"strings"
 	"testing"
 )
+
+func TestRoomActionDeletesRoom(t *testing.T) {
+	db, err := sql.Open("sqlite", ":memory:")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	if err := migrate(db); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.Exec("INSERT INTO rooms(name,capacity) VALUES('Sala 1',10)"); err != nil {
+		t.Fatal(err)
+	}
+	w := httptest.NewRecorder()
+	(&App{db: db}).roomAction(w, httptest.NewRequest(http.MethodPost, "/rooms/1/delete", nil))
+	if w.Code != http.StatusSeeOther {
+		t.Fatalf("got status %d", w.Code)
+	}
+	var count int
+	if err := db.QueryRow("SELECT COUNT(*) FROM rooms").Scan(&count); err != nil || count != 0 {
+		t.Fatalf("room was not deleted: %d, %v", count, err)
+	}
+}
 
 func TestValidBooking(t *testing.T) {
 	if !validBooking("2999-01-01", "09:00", "10:00") {
@@ -27,6 +51,18 @@ func TestDateBR(t *testing.T) {
 
 func TestDateISO(t *testing.T) {
 	if got := dateISO("14/07/2026"); got != "2026-07-14" {
+		t.Fatalf("got %q", got)
+	}
+}
+
+func TestWeekStart(t *testing.T) {
+	if got := weekStart("2026-07-15").Format("2006-01-02"); got != "2026-07-13" {
+		t.Fatalf("got %q", got)
+	}
+}
+
+func TestWeekdayBR(t *testing.T) {
+	if got := weekdayBR("2026-07-15"); got != "Quarta-feira" {
 		t.Fatalf("got %q", got)
 	}
 }
