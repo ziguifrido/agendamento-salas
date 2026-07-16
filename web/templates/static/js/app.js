@@ -64,7 +64,7 @@ const dismissToast = id => {
   saveToasts();
   document.querySelector(`[data-toast-id="${id}"]`)?.remove();
 };
-toasts.forEach(toast => {
+const renderToast = toast => {
   const element = document.createElement('div');
   element.className = `toast ${toast.kind}`;
   element.dataset.toastId = toast.id;
@@ -77,8 +77,16 @@ toasts.forEach(toast => {
   close.addEventListener('click', () => dismissToast(toast.id));
   element.append(close);
   toastStack.append(element);
-  setTimeout(() => dismissToast(toast.id), toast.expires - now);
-});
+  setTimeout(() => dismissToast(toast.id), toast.expires - Date.now());
+};
+const addToast = (kind, text) => {
+  if (toasts.some(toast => toast.text === text)) return;
+  const toast = { id: `${Date.now()}-${Math.random()}`, kind, text, expires: Date.now() + 5000 };
+  toasts.push(toast);
+  saveToasts();
+  renderToast(toast);
+};
+toasts.forEach(renderToast);
 saveToasts();
 document.querySelector('#new-booking')?.addEventListener('click', () => dialog.showModal());
 document.querySelector('#new-room')?.addEventListener('click', button => {
@@ -101,21 +109,63 @@ try {
   if (!sessionStorage.getItem('automatic-refresh-day')) sessionStorage.setItem('automatic-refresh-day', localDay());
 } catch {}
 let automaticRefreshTimer;
-const scheduleAutomaticRefresh = () => {
-  clearTimeout(automaticRefreshTimer);
-  if (!presentationMode && !automaticRefresh) return;
-  automaticRefreshTimer = setTimeout(async () => {
-    const day = localDay();
-    try {
-      if (sessionStorage.getItem('automatic-refresh-day') !== day) {
-        await fetch('/agenda/today', { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams({ day }) });
-        sessionStorage.setItem('automatic-refresh-day', day);
-      }
+let pendingRefresh = false;
+const refreshAgenda = async () => {
+  pendingRefresh = false;
+  const day = localDay();
+  try {
+    if (sessionStorage.getItem('automatic-refresh-day') !== day) {
+      const response = await fetch('/agenda/today', { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams({ day }) });
+      if (!response.ok) throw new Error(response.status);
+      sessionStorage.setItem('automatic-refresh-day', day);
       sessionStorage.setItem('automatic-refresh-notice', 'true');
-    } catch {} finally {
       location.reload();
+      return;
     }
-  }, 30000);
+    const response = await fetch(location.href, { headers: { Accept: 'text/html' } });
+    if (!response.ok) throw new Error(response.status);
+    const doc = new DOMParser().parseFromString(await response.text(), 'text/html');
+    const swapped = ['.agenda-view', '#agenda-filter select[name="room_id"]', '#booking-form select[name="room_id"]', '#rooms-dialog .managed-rooms'].every(selector => {
+      const current = document.querySelector(selector);
+      const updated = doc.querySelector(selector);
+      if (!current && !updated) return true;
+      if (!current || !updated) return false;
+      current.innerHTML = updated.innerHTML;
+      return true;
+    });
+    if (!swapped) throw new Error('estrutura divergente');
+    updateBookingStates();
+    addToast('ok', 'Agenda atualizada automaticamente.');
+  } catch {
+    try { sessionStorage.setItem('automatic-refresh-notice', 'true'); } catch {}
+    location.reload();
+  }
+};
+const interacting = () => document.querySelector('dialog[open]') !== null || ['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement?.tagName);
+const flushRefresh = () => setTimeout(() => {
+  if (pendingRefresh && !interacting()) refreshAgenda();
+});
+const eventSource = new EventSource('/events');
+eventSource.addEventListener('change', () => {
+  if (presentationMode || automaticRefresh || !interacting()) {
+    refreshAgenda();
+    return;
+  }
+  pendingRefresh = true;
+});
+document.querySelectorAll('dialog').forEach(element => element.addEventListener('close', flushRefresh));
+document.addEventListener('focusout', flushRefresh);
+document.addEventListener('submit', event => {
+  if (event.target.matches('.cancel-form') && !confirm('Cancelar este agendamento?')) event.preventDefault();
+  if (event.target.matches('.delete-room') && !confirm('Excluir esta sala?')) event.preventDefault();
+  if (!event.defaultPrevented) eventSource.close();
+});
+const scheduleAutomaticRefresh = () => {
+  clearInterval(automaticRefreshTimer);
+  if (!presentationMode && !automaticRefresh) return;
+  automaticRefreshTimer = setInterval(() => {
+    if (sessionStorage.getItem('automatic-refresh-day') !== localDay()) refreshAgenda();
+  }, 60000);
 };
 const setPresentationMode = enabled => {
   document.body.classList.toggle('presentation', enabled);
@@ -156,34 +206,35 @@ const updateBookingStates = () => {
 };
 updateBookingStates();
 setInterval(updateBookingStates, 60000);
-document.querySelectorAll('.booking-details').forEach(button => button.addEventListener('click', () => {
-  const details = button.dataset;
-  detailsDialog.querySelector('[data-detail="title"]').textContent = details.title;
-  detailsDialog.querySelector('[data-detail="room"]').textContent = details.room;
-  detailsDialog.querySelector('[data-detail="day"]').textContent = details.day;
-  detailsDialog.querySelector('[data-detail="time"]').textContent = `${details.starts}–${details.ends}`;
-  detailsDialog.querySelector('[data-detail="owner"]').textContent = details.owner;
-  detailsDialog.querySelector('[data-detail="description"]').textContent = details.description || 'Sem descrição.';
-  detailCancelForm.action = `/bookings/${details.id}/cancel`;
-  detailCancelForm.elements.day.value = details.dayIso;
-  detailCancelForm.toggleAttribute('hidden', new Date(`${details.dayIso}T${details.ends}:00`) <= new Date());
-  detailsDialog.showModal();
-}));
-document.querySelectorAll('.edit-room').forEach(button => button.addEventListener('click', () => {
-  const form = document.querySelector('#edit-room-form');
-  form.action = `/rooms/${button.dataset.id}/edit`;
-  ['name', 'capacity', 'location', 'resources', 'description'].forEach(field => form.elements[field].value = button.dataset[field]);
-  editRoomDialog.showModal();
-}));
-document.querySelectorAll('.view-room').forEach(button => button.addEventListener('click', () => {
-  const details = button.dataset;
-  ['name', 'capacity', 'location', 'resources', 'description'].forEach(field => viewRoomDialog.querySelector(`[data-room-detail="${field}"]`).textContent = details[field] || 'Não informado');
-  viewRoomDialog.querySelector('[data-room-detail="capacity"]').textContent = `${details.capacity} pessoas`;
-  viewRoomDialog.showModal();
-}));
-document.querySelectorAll('.cancel-form').forEach(form => form.addEventListener('submit', event => {
-  if (!confirm('Cancelar este agendamento?')) event.preventDefault();
-}));
-document.querySelectorAll('.delete-room').forEach(form => form.addEventListener('submit', event => {
-  if (!confirm('Excluir esta sala?')) event.preventDefault();
-}));
+document.addEventListener('click', event => {
+  const bookingButton = event.target.closest('.booking-details');
+  if (bookingButton) {
+    const details = bookingButton.dataset;
+    detailsDialog.querySelector('[data-detail="title"]').textContent = details.title;
+    detailsDialog.querySelector('[data-detail="room"]').textContent = details.room;
+    detailsDialog.querySelector('[data-detail="day"]').textContent = details.day;
+    detailsDialog.querySelector('[data-detail="time"]').textContent = `${details.starts}–${details.ends}`;
+    detailsDialog.querySelector('[data-detail="owner"]').textContent = details.owner;
+    detailsDialog.querySelector('[data-detail="description"]').textContent = details.description || 'Sem descrição.';
+    detailCancelForm.action = `/bookings/${details.id}/cancel`;
+    detailCancelForm.elements.day.value = details.dayIso;
+    detailCancelForm.toggleAttribute('hidden', new Date(`${details.dayIso}T${details.ends}:00`) <= new Date());
+    detailsDialog.showModal();
+    return;
+  }
+  const editButton = event.target.closest('.edit-room');
+  if (editButton) {
+    const form = document.querySelector('#edit-room-form');
+    form.action = `/rooms/${editButton.dataset.id}/edit`;
+    ['name', 'capacity', 'location', 'resources', 'description'].forEach(field => form.elements[field].value = editButton.dataset[field]);
+    editRoomDialog.showModal();
+    return;
+  }
+  const viewButton = event.target.closest('.view-room');
+  if (viewButton) {
+    const details = viewButton.dataset;
+    ['name', 'capacity', 'location', 'resources', 'description'].forEach(field => viewRoomDialog.querySelector(`[data-room-detail="${field}"]`).textContent = details[field] || 'Não informado');
+    viewRoomDialog.querySelector('[data-room-detail="capacity"]').textContent = `${details.capacity} pessoas`;
+    viewRoomDialog.showModal();
+  }
+});

@@ -32,6 +32,24 @@ func TestRoomActionDeletesRoom(t *testing.T) {
 	}
 }
 
+func TestNotifySignalsSubscribers(t *testing.T) {
+	a := &App{}
+	ch := a.subscribe()
+	a.notify()
+	select {
+	case <-ch:
+	default:
+		t.Fatal("subscriber was not notified")
+	}
+	a.unsubscribe(ch)
+	a.notify()
+	select {
+	case <-ch:
+		t.Fatal("unsubscribed channel was notified")
+	default:
+	}
+}
+
 func TestValidBooking(t *testing.T) {
 	if !validBooking("2999-01-01", "09:00", "10:00") {
 		t.Fatal("valid booking rejected")

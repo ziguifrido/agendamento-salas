@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"encoding/base64"
 	"encoding/json"
+	"fmt"
 	"html/template"
 	"log/slog"
 	"net/http"
@@ -11,6 +12,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	_ "modernc.org/sqlite"
@@ -29,9 +31,11 @@ type AgendaDay struct {
 	Bookings []Booking
 }
 type App struct {
-	db        *sql.DB
-	templates *template.Template
-	log       *slog.Logger
+	db          *sql.DB
+	templates   *template.Template
+	log         *slog.Logger
+	mu          sync.Mutex
+	subscribers map[chan struct{}]struct{}
 }
 type flash struct {
 	Message, Error, RoomError, RoomDialog string
@@ -64,6 +68,7 @@ func main() {
 	mux.HandleFunc("/agenda/", a.navigateAgenda)
 	mux.HandleFunc("/bookings", a.bookings)
 	mux.HandleFunc("/bookings/", a.bookingAction)
+	mux.HandleFunc("/events", a.events)
 	addr := os.Getenv("ADDR")
 	if addr == "" {
 		addr = ":8080"
@@ -241,6 +246,7 @@ func (a *App) rooms(w http.ResponseWriter, r *http.Request) {
 			a.redirectRoom(w, r, "", "Sala já existe ou capacidade inválida")
 			return
 		}
+		a.notify()
 		a.redirectRoom(w, r, "Sala criada", "")
 		return
 	}
@@ -273,13 +279,15 @@ func (a *App) roomAction(w http.ResponseWriter, r *http.Request) {
 			a.redirectManage(w, r, "", "Sala já existe ou capacidade inválida")
 			return
 		}
+		a.notify()
 		a.redirectManage(w, r, "Sala atualizada", "")
 	case "delete":
-		_, err = a.db.Exec("DELETE FROM rooms WHERE id=?", id)
+		_, err = a.db.ExecContext(r.Context(), "DELETE FROM rooms WHERE id=?", id)
 		if err != nil {
 			a.redirectManage(w, r, "", "Não é possível excluir uma sala com agendamentos")
 			return
 		}
+		a.notify()
 		a.redirectManage(w, r, "Sala excluída", "")
 	default:
 		http.NotFound(w, r)
@@ -311,6 +319,7 @@ func (a *App) bookings(w http.ResponseWriter, r *http.Request) {
 		a.redirect(w, r, "", "Não foi possível criar a reserva")
 		return
 	}
+	a.notify()
 	a.redirect(w, r, "Reserva criada", "")
 }
 func (a *App) bookingAction(w http.ResponseWriter, r *http.Request) {
@@ -329,7 +338,66 @@ func (a *App) bookingAction(w http.ResponseWriter, r *http.Request) {
 		a.redirect(w, r, "", "Não foi possível cancelar")
 		return
 	}
+	a.notify()
 	a.redirect(w, r, "Reserva cancelada", "")
+}
+func (a *App) events(w http.ResponseWriter, r *http.Request) {
+	flusher, ok := w.(http.Flusher)
+	if !ok {
+		http.Error(w, "streaming não suportado", 500)
+		return
+	}
+	w.Header().Set("Content-Type", "text/event-stream")
+	w.Header().Set("Cache-Control", "no-cache")
+	ch := a.subscribe()
+	defer a.unsubscribe(ch)
+	if _, err := fmt.Fprint(w, ": conectado\n\n"); err != nil {
+		return
+	}
+	flusher.Flush()
+	heartbeat := time.NewTicker(30 * time.Second)
+	defer heartbeat.Stop()
+	for {
+		select {
+		case <-r.Context().Done():
+			return
+		case <-ch:
+			if _, err := fmt.Fprint(w, "event: change\ndata: {}\n\n"); err != nil {
+				return
+			}
+			flusher.Flush()
+		case <-heartbeat.C:
+			if _, err := fmt.Fprint(w, ": keep-alive\n\n"); err != nil {
+				return
+			}
+			flusher.Flush()
+		}
+	}
+}
+func (a *App) subscribe() chan struct{} {
+	ch := make(chan struct{}, 1)
+	a.mu.Lock()
+	if a.subscribers == nil {
+		a.subscribers = map[chan struct{}]struct{}{}
+	}
+	a.subscribers[ch] = struct{}{}
+	a.mu.Unlock()
+	return ch
+}
+func (a *App) unsubscribe(ch chan struct{}) {
+	a.mu.Lock()
+	delete(a.subscribers, ch)
+	a.mu.Unlock()
+}
+func (a *App) notify() {
+	a.mu.Lock()
+	for ch := range a.subscribers {
+		select {
+		case ch <- struct{}{}:
+		default:
+		}
+	}
+	a.mu.Unlock()
 }
 func validBooking(day, starts, ends string) bool {
 	d, e := time.Parse("2006-01-02", day)
