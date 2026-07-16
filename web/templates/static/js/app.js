@@ -116,7 +116,7 @@ const refreshAgenda = async () => {
   try {
     if (sessionStorage.getItem('automatic-refresh-day') !== day) {
       const response = await fetch('/agenda/today', { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams({ day }) });
-      if (!response.ok) return;
+      if (!response.ok) throw new Error(response.status);
       sessionStorage.setItem('automatic-refresh-day', day);
       sessionStorage.setItem('automatic-refresh-notice', 'true');
       location.reload();
