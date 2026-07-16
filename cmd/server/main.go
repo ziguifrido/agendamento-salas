@@ -282,7 +282,7 @@ func (a *App) roomAction(w http.ResponseWriter, r *http.Request) {
 		a.notify()
 		a.redirectManage(w, r, "Sala atualizada", "")
 	case "delete":
-		_, err = a.db.Exec("DELETE FROM rooms WHERE id=?", id)
+		_, err = a.db.ExecContext(r.Context(), "DELETE FROM rooms WHERE id=?", id)
 		if err != nil {
 			a.redirectManage(w, r, "", "Não é possível excluir uma sala com agendamentos")
 			return
@@ -351,7 +351,9 @@ func (a *App) events(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "no-cache")
 	ch := a.subscribe()
 	defer a.unsubscribe(ch)
-	fmt.Fprint(w, ": conectado\n\n")
+	if _, err := fmt.Fprint(w, ": conectado\n\n"); err != nil {
+		return
+	}
 	flusher.Flush()
 	heartbeat := time.NewTicker(30 * time.Second)
 	defer heartbeat.Stop()
@@ -360,10 +362,14 @@ func (a *App) events(w http.ResponseWriter, r *http.Request) {
 		case <-r.Context().Done():
 			return
 		case <-ch:
-			fmt.Fprint(w, "event: change\ndata: {}\n\n")
+			if _, err := fmt.Fprint(w, "event: change\ndata: {}\n\n"); err != nil {
+				return
+			}
 			flusher.Flush()
 		case <-heartbeat.C:
-			fmt.Fprint(w, ": keep-alive\n\n")
+			if _, err := fmt.Fprint(w, ": keep-alive\n\n"); err != nil {
+				return
+			}
 			flusher.Flush()
 		}
 	}

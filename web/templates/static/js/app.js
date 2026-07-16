@@ -111,10 +111,12 @@ try {
 let automaticRefreshTimer;
 let pendingRefresh = false;
 const refreshAgenda = async () => {
+  pendingRefresh = false;
   const day = localDay();
   try {
     if (sessionStorage.getItem('automatic-refresh-day') !== day) {
-      await fetch('/agenda/today', { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams({ day }) });
+      const response = await fetch('/agenda/today', { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams({ day }) });
+      if (!response.ok) return;
       sessionStorage.setItem('automatic-refresh-day', day);
       sessionStorage.setItem('automatic-refresh-notice', 'true');
       location.reload();
