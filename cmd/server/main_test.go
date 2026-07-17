@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -54,10 +55,63 @@ func TestValidBooking(t *testing.T) {
 	if !validBooking("2999-01-01", "09:00", "10:00") {
 		t.Fatal("valid booking rejected")
 	}
-	for _, test := range [][3]string{{"2999-01-01", "10:00", "10:00"}, {"2000-01-01", "09:00", "10:00"}, {"bad", "09:00", "10:00"}} {
+	for _, test := range [][3]string{{"2999-01-01", "10:00", "10:00"}, {"2999-01-01", "aa:aa", "zz:zz"}, {"2999-01-01", "09:60", "10:00"}, {"2000-01-01", "09:00", "10:00"}, {"bad", "09:00", "10:00"}} {
 		if validBooking(test[0], test[1], test[2]) {
 			t.Fatalf("invalid booking accepted: %v", test)
 		}
+	}
+}
+
+func TestSQLiteDSNEnablesForeignKeysOnEveryConnection(t *testing.T) {
+	db, err := sql.Open("sqlite", sqliteDSN(filepath.Join(t.TempDir(), "test.db")))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	db.SetMaxOpenConns(2)
+	if err := migrate(db); err != nil {
+		t.Fatal(err)
+	}
+	first, err := db.Conn(t.Context())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer first.Close()
+	second, err := db.Conn(t.Context())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer second.Close()
+	for _, conn := range []*sql.Conn{first, second} {
+		var enabled int
+		if err := conn.QueryRowContext(t.Context(), "PRAGMA foreign_keys").Scan(&enabled); err != nil || enabled != 1 {
+			t.Fatalf("foreign keys disabled: %d, %v", enabled, err)
+		}
+	}
+}
+
+func TestBookingConflictIsRejected(t *testing.T) {
+	db, err := sql.Open("sqlite", sqliteDSN(filepath.Join(t.TempDir(), "test.db")))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	if err := migrate(db); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.Exec("INSERT INTO rooms(name,capacity) VALUES('Sala 1',10)"); err != nil {
+		t.Fatal(err)
+	}
+	a := &App{db: db}
+	for range 2 {
+		form := url.Values{"room_id": {"1"}, "owner": {"Ana"}, "title": {"Planejamento"}, "day": {"2999-01-01"}, "starts": {"09:00"}, "ends": {"10:00"}}
+		r := httptest.NewRequest(http.MethodPost, "/bookings", strings.NewReader(form.Encode()))
+		r.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		a.bookings(httptest.NewRecorder(), r)
+	}
+	var count int
+	if err := db.QueryRow("SELECT COUNT(*) FROM bookings").Scan(&count); err != nil || count != 1 {
+		t.Fatalf("expected one booking: %d, %v", count, err)
 	}
 }
 
@@ -107,5 +161,26 @@ func TestRedirectKeepsBookingFieldsAfterError(t *testing.T) {
 	}
 	if !strings.Contains(w.Result().Header.Get("Set-Cookie"), "flash=") {
 		t.Fatal("flash cookie missing")
+	}
+}
+
+func TestSecurityRejectsLargeForm(t *testing.T) {
+	called := false
+	handler := security(http.HandlerFunc(func(http.ResponseWriter, *http.Request) { called = true }))
+	r := httptest.NewRequest(http.MethodPost, "/bookings", strings.NewReader("title="+strings.Repeat("a", maxFormBytes)))
+	r.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	w := httptest.NewRecorder()
+	handler.ServeHTTP(w, r)
+	if called || w.Code != http.StatusRequestEntityTooLarge {
+		t.Fatalf("large form accepted: called=%v status=%d", called, w.Code)
+	}
+}
+
+func TestFlashCookieIsBounded(t *testing.T) {
+	w := httptest.NewRecorder()
+	setFlash(w, flash{Error: "erro", Form: Booking{Description: strings.Repeat("a", maxFormBytes)}})
+	cookie := w.Header().Get("Set-Cookie")
+	if len(cookie) >= 4096 {
+		t.Fatalf("oversized cookie: %d bytes", len(cookie))
 	}
 }
