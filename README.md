@@ -5,7 +5,7 @@
 [![Último commit](https://img.shields.io/github/last-commit/ziguifrido/agendamento-salas?label=%C3%BAltimo%20commit&color=6C8EBF)](https://github.com/ziguifrido/agendamento-salas/commits/main)
 [![Atividade de commits](https://img.shields.io/github/commit-activity/m/ziguifrido/agendamento-salas?label=atividade&color=6C8EBF)](https://github.com/ziguifrido/agendamento-salas/commits/main)
 [![Tamanho do repositório](https://img.shields.io/github/repo-size/ziguifrido/agendamento-salas?label=tamanho&color=6C8EBF)](https://github.com/ziguifrido/agendamento-salas)
-[![Versão](https://img.shields.io/badge/vers%C3%A3o-v0.2.0-6C8EBF)](VERSION)
+[![Versão](https://img.shields.io/badge/vers%C3%A3o-v0.2.2-6C8EBF)](VERSION)
 [![Go](https://img.shields.io/badge/Go-1.24%2B-00ADD8?logo=go&logoColor=white)](https://go.dev/)
 [![SQLite](https://img.shields.io/badge/SQLite-embutido-003B57?logo=sqlite&logoColor=white)](https://www.sqlite.org/)
 [![PWA](https://img.shields.io/badge/PWA-instal%C3%A1vel-5A0FC8?logo=pwa&logoColor=white)](https://web.dev/learn/pwa/)
