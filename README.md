@@ -18,7 +18,7 @@ O **Reserva de Salas de Reunião** foi pensado para equipes que precisam de uma 
 ### Principais recursos
 
 - Agenda por **dia** ou por **semana**, com navegação entre datas.
-- Modo apresentação e atualização automática da agenda a cada 30 segundos.
+- Modo apresentação e atualização automática da agenda a cada 60 segundos.
 - Temas claro, escuro e automático, seguindo a preferência do sistema quando selecionado.
 - Busca por sala, responsável ou título da reserva.
 - Filtro de sala, troca de visualização e navegação atualizados imediatamente.
@@ -62,13 +62,13 @@ docker compose down
 ## Como usar
 
 1. Use o botão com seta para recolher ou ampliar o painel lateral conforme necessário.
-2. Abra a engrenagem no rodapé do painel lateral e selecione **Cadastrar sala**.
-3. Use **Gerenciar salas** no mesmo menu para visualizar, editar ou excluir uma sala. Salas com agendamentos não podem ser excluídas.
+2. Abra a engrenagem no rodapé do painel lateral e selecione **Gerenciar salas**.
+3. Nesse dialog, cadastre, visualize, edite ou exclua salas. Salas com agendamentos não podem ser excluídas.
 4. Na agenda, selecione **Nova reserva**.
 5. Escolha a sala, responsável, título, data e intervalo de horário.
 6. Confirme a reserva. Se já houver ocupação no período, a aplicação informa o conflito e preserva o formulário para correção.
 
-Use a busca para localizar reservas e alterne entre as visões diária e semanal conforme necessário. Clique em uma reserva para ver seus detalhes; o botão **Cancelar** remove reservas não encerradas após confirmação. Pelo menu de configurações, escolha o tema claro, escuro ou automático e habilite o modo apresentação ou a atualização automática. Ambos atualizam a agenda a cada 30 segundos e selecionam o dia atual quando ocorre a virada de data no navegador.
+Use a busca para localizar reservas e alterne entre as visões diária e semanal conforme necessário. Clique em uma reserva para ver seus detalhes; o botão **Cancelar** remove reservas não encerradas após confirmação. Pelo menu de configurações, escolha o tema claro, escuro ou automático e habilite o modo apresentação ou a atualização automática. Ambos verificam a virada do dia a cada 60 segundos e selecionam a data local atual do navegador quando necessário.
 
 ## Configuração
 

@@ -89,8 +89,8 @@ const addToast = (kind, text) => {
 toasts.forEach(renderToast);
 saveToasts();
 document.querySelector('#new-booking')?.addEventListener('click', () => dialog.showModal());
-document.querySelector('#new-room')?.addEventListener('click', button => {
-  button.currentTarget.closest('details').open = false;
+document.querySelector('#new-room')?.addEventListener('click', () => {
+  roomsDialog.close();
   roomDialog.showModal();
 });
 document.querySelector('#manage-rooms')?.addEventListener('click', button => {
@@ -99,8 +99,11 @@ document.querySelector('#manage-rooms')?.addEventListener('click', button => {
 });
 let presentationMode = false;
 try { presentationMode = sessionStorage.getItem('presentation-mode') === 'true'; } catch {}
-let automaticRefresh = false;
-try { automaticRefresh = sessionStorage.getItem('automatic-refresh') === 'true'; } catch {}
+let automaticRefresh = true;
+try {
+  const savedAutomaticRefresh = sessionStorage.getItem('automatic-refresh');
+  if (savedAutomaticRefresh !== null) automaticRefresh = savedAutomaticRefresh === 'true';
+} catch {}
 const localDay = () => {
   const day = new Date();
   return `${day.getFullYear()}-${String(day.getMonth() + 1).padStart(2, '0')}-${String(day.getDate()).padStart(2, '0')}`;
@@ -158,7 +161,7 @@ document.addEventListener('focusout', flushRefresh);
 document.addEventListener('submit', event => {
   if (event.target.matches('.cancel-form') && !confirm('Cancelar este agendamento?')) event.preventDefault();
   if (event.target.matches('.delete-room') && !confirm('Excluir esta sala?')) event.preventDefault();
-  if (!event.defaultPrevented) eventSource.close();
+  if (!event.defaultPrevented && !event.target.matches('[hx-get], [hx-post]')) eventSource.close();
 });
 const scheduleAutomaticRefresh = () => {
   clearInterval(automaticRefreshTimer);
@@ -189,7 +192,9 @@ if (dialog?.dataset.open !== undefined) dialog.showModal();
 if (roomDialog?.dataset.open !== undefined) roomDialog.showModal();
 if (roomsDialog?.dataset.open !== undefined) roomsDialog.showModal();
 document.querySelector('#booking-form')?.addEventListener('submit', () => dialog.close());
-document.querySelectorAll('#agenda-filter select').forEach(select => select.addEventListener('change', () => select.form.requestSubmit()));
+document.addEventListener('change', event => {
+  if (event.target.matches('#agenda-filter select')) event.target.form.requestSubmit();
+});
 const detailsDialog = document.querySelector('#booking-details-dialog');
 const detailCancelForm = document.querySelector('#booking-detail-cancel');
 const updateBookingStates = () => {
@@ -205,6 +210,7 @@ const updateBookingStates = () => {
   });
 };
 updateBookingStates();
+document.addEventListener('htmx:afterSwap', updateBookingStates);
 setInterval(updateBookingStates, 60000);
 document.addEventListener('click', event => {
   const bookingButton = event.target.closest('.booking-details');
@@ -217,7 +223,6 @@ document.addEventListener('click', event => {
     detailsDialog.querySelector('[data-detail="owner"]').textContent = details.owner;
     detailsDialog.querySelector('[data-detail="description"]').textContent = details.description || 'Sem descrição.';
     detailCancelForm.action = `/bookings/${details.id}/cancel`;
-    detailCancelForm.elements.day.value = details.dayIso;
     detailCancelForm.toggleAttribute('hidden', new Date(`${details.dayIso}T${details.ends}:00`) <= new Date());
     detailsDialog.showModal();
     return;
