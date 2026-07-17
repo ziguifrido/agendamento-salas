@@ -1,0 +1,126 @@
+{{define "booking-dialogs"}}
+    {{if .Rooms}}
+      <dialog id="booking-dialog" {{if .Error}}data-open{{end}}>
+        {{if .Error}}
+          <div class="toast error" role="alert">
+            {{.Error}}
+            <button class="toast-close" aria-label="Fechar notificação">×</button>
+          </div>
+        {{end}}
+        <div class="dialog-title">
+          <h2>Nova reserva</h2>
+          <form method="dialog">
+            <button class="close" aria-label="Fechar">×</button>
+          </form>
+        </div>
+        <form id="booking-form" method="post" action="/bookings">
+          <input type="hidden" name="_csrf" value="{{.CSRF}}">
+          <label>
+            Sala
+            <select name="room_id" required>
+              {{range .Rooms}}
+                <option value="{{.ID}}" {{if eq .ID $.Form.RoomID}}selected{{end}}>
+                  {{.Name}} · {{.Capacity}} pessoas
+                </option>
+              {{end}}
+            </select>
+          </label>
+          <label>
+            Responsável
+            <input name="owner" value="{{.Form.Owner}}" maxlength="100" required autocomplete="name">
+          </label>
+          <label>
+            Título
+            <input name="title" value="{{.Form.Title}}" maxlength="150" required>
+          </label>
+          <label>
+            Descrição
+            <textarea name="description" maxlength="1000">{{.Form.Description}}</textarea>
+          </label>
+          <div class="grid">
+            <label>
+              Data
+              <input type="date" name="day" value="{{.Form.Day}}" min="{{now}}" required>
+            </label>
+            <label>
+              Início
+              <input type="time" name="starts" value="{{.Form.Starts}}" required>
+            </label>
+            <label>
+              Fim
+              <input type="time" name="ends" value="{{.Form.Ends}}" required>
+            </label>
+          </div>
+          <button>{{if .IsAdmin}}Confirmar reserva{{else}}Enviar solicitação{{end}}</button>
+        </form>
+      </dialog>
+
+      <dialog id="booking-details-dialog">
+        <div class="dialog-title">
+          <h2 data-detail="title">Detalhes da reserva</h2>
+          <form method="dialog">
+            <button class="close" aria-label="Fechar">×</button>
+          </form>
+        </div>
+        <dl class="booking-detail-list">
+          <div>
+            <dt>Sala</dt>
+            <dd data-detail="room"></dd>
+          </div>
+          <div>
+            <dt>Data</dt>
+            <dd data-detail="day"></dd>
+          </div>
+          <div>
+            <dt>Horário</dt>
+            <dd data-detail="time"></dd>
+          </div>
+          <div>
+            <dt>Responsável</dt>
+            <dd data-detail="owner"></dd>
+          </div>
+          <div>
+            <dt>Descrição</dt>
+            <dd data-detail="description"></dd>
+          </div>
+          <div>
+            <dt>Situação</dt>
+            <dd data-detail="status"></dd>
+          </div>
+        </dl>
+        <form id="booking-detail-cancel" class="cancel-form" method="post">
+          <input type="hidden" name="_csrf" value="{{.CSRF}}">
+          <button class="danger">Cancelar</button>
+        </form>
+      </dialog>
+
+      {{if .IsAdmin}}
+        <dialog id="edit-booking-dialog">
+          <div class="dialog-title">
+            <h2>Editar reserva</h2>
+            <form method="dialog">
+              <button class="close" aria-label="Fechar">×</button>
+            </form>
+          </div>
+          <form id="edit-booking-form" method="post">
+            <input type="hidden" name="_csrf" value="{{.CSRF}}">
+            <label>
+              Sala
+              <select name="room_id" required>
+                {{range .Rooms}}<option value="{{.ID}}">{{.Name}}</option>{{end}}
+              </select>
+            </label>
+            <label>Responsável<input name="owner" maxlength="100" required></label>
+            <label>Título<input name="title" maxlength="150" required></label>
+            <label>Descrição<textarea name="description" maxlength="1000"></textarea></label>
+            <div class="grid">
+              <label>Data<input type="date" name="day" min="{{now}}" required></label>
+              <label>Início<input type="time" name="starts" required></label>
+              <label>Fim<input type="time" name="ends" required></label>
+            </div>
+            <button>Salvar alterações</button>
+          </form>
+        </dialog>
+      {{end}}
+    {{end}}
+{{end}}

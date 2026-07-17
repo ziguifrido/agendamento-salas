@@ -20,6 +20,12 @@
         <button class="toast-close" aria-label="Fechar notificação">×</button>
       </div>
     {{end}}
+    {{if .ActionError}}
+      <div class="toast error" role="alert">
+        {{.ActionError}}
+        <button class="toast-close" aria-label="Fechar notificação">×</button>
+      </div>
+    {{end}}
 
     <main>
       <div class="page-title">
@@ -27,9 +33,16 @@
           <h1>Agenda de salas</h1>
           <p class="muted">Veja a disponibilidade e crie reservas.</p>
         </div>
-        {{if .Rooms}}
-          <button id="new-booking" class="new-booking">Nova reserva</button>
-        {{end}}
+        <div class="account-actions">
+          <span class="muted">{{.CurrentUser.Name}}</span>
+          {{if .Rooms}}
+            <button id="new-booking" class="new-booking">{{if .IsAdmin}}Nova reserva{{else}}Solicitar reserva{{end}}</button>
+          {{end}}
+          <form method="post" action="/logout">
+            <input type="hidden" name="_csrf" value="{{.CSRF}}">
+            <button class="secondary">Sair</button>
+          </form>
+        </div>
       </div>
 
       <section class="agenda-layout">
@@ -101,7 +114,11 @@
             <details class="sidebar-settings">
               <summary aria-label="Configurações" title="Configurações">⚙</summary>
               <div class="settings-menu">
-                <button id="manage-rooms" type="button">Gerenciar salas</button>
+                <button id="manage-requests" type="button">{{if .IsAdmin}}Solicitações pendentes ({{len .Requests}}){{else}}Minhas solicitações{{end}}</button>
+                <button id="manage-rooms" type="button">{{if .IsAdmin}}Gerenciar salas{{else}}Salas{{end}}</button>
+                {{if .IsAdmin}}
+                  <button id="manage-users" type="button">Gerenciar usuários</button>
+                {{end}}
                 <label class="theme-select">
                   Tema
                   <select id="theme-select" aria-label="Tema">
@@ -135,12 +152,15 @@
             hx-swap="outerHTML"
           >
             <form method="post" action="/agenda/previous" hx-post="/agenda/previous">
+              <input type="hidden" name="_csrf" value="{{.CSRF}}">
               <button aria-label="Dia anterior" title="Dia anterior">←</button>
             </form>
             <form method="post" action="/agenda/today" hx-post="/agenda/today">
+              <input type="hidden" name="_csrf" value="{{.CSRF}}">
               <button>Hoje</button>
             </form>
             <form method="post" action="/agenda/next" hx-post="/agenda/next">
+              <input type="hidden" name="_csrf" value="{{.CSRF}}">
               <button aria-label="Próximo dia" title="Próximo dia">→</button>
             </form>
           </nav>
@@ -155,10 +175,11 @@
                       <span>{{dateBR .Day}}</span>
                     </h3>
                     {{range .Bookings}}
-                      <article class="booking">
+                      <article class="booking{{if eq .Status "pending"}} pending{{end}}">
                         <button
                           class="booking-details"
                           data-id="{{.ID}}"
+                          data-room-id="{{.RoomID}}"
                           data-room="{{.Room}}"
                           data-title="{{.Title}}"
                           data-owner="{{.Owner}}"
@@ -167,11 +188,14 @@
                           data-starts="{{.Starts}}"
                           data-ends="{{.Ends}}"
                           data-description="{{.Description}}"
+                          data-status="{{.Status}}"
+                          data-can-cancel="{{.CanCancel}}"
                           aria-label="Ver detalhes de {{.Title}}"
                         >
                           <strong>{{.Starts}}–{{.Ends}} · {{.Room}}</strong>
                           <br>
                           {{.Title}} <span class="muted">· {{.Owner}}</span>
+                          {{if eq .Status "pending"}}<span class="status pending">Pendente</span>{{end}}
                         </button>
                       </article>
                     {{else}}
@@ -185,10 +209,11 @@
             {{if .Bookings}}
               <div class="bookings">
                 {{range .Bookings}}
-                  <article class="booking">
+                  <article class="booking{{if eq .Status "pending"}} pending{{end}}">
                     <button
                       class="booking-details"
                       data-id="{{.ID}}"
+                      data-room-id="{{.RoomID}}"
                       data-room="{{.Room}}"
                       data-title="{{.Title}}"
                       data-owner="{{.Owner}}"
@@ -197,18 +222,40 @@
                       data-starts="{{.Starts}}"
                       data-ends="{{.Ends}}"
                       data-description="{{.Description}}"
+                      data-status="{{.Status}}"
+                      data-can-cancel="{{.CanCancel}}"
                       aria-label="Ver detalhes de {{.Title}}"
                     >
                       <strong>{{.Starts}}–{{.Ends}} · {{.Room}}</strong>
                       <br>
                       {{.Title}} <span class="muted">· {{.Owner}}</span>
+                      {{if eq .Status "pending"}}<span class="status pending">Pendente</span>{{end}}
                       {{if .Description}}
                         <p>{{.Description}}</p>
                       {{end}}
                     </button>
-                    <form class="cancel-form" method="post" action="/bookings/{{.ID}}/cancel">
-                      <button class="danger">Cancelar</button>
-                    </form>
+                    <div class="booking-actions">
+                      {{if .CanEdit}}
+                        <button
+                          class="edit-booking"
+                          type="button"
+                          data-id="{{.ID}}"
+                          data-room-id="{{.RoomID}}"
+                          data-owner="{{.Owner}}"
+                          data-title="{{.Title}}"
+                          data-description="{{.Description}}"
+                          data-day="{{.Day}}"
+                          data-starts="{{.Starts}}"
+                          data-ends="{{.Ends}}"
+                        >Editar</button>
+                      {{end}}
+                      {{if .CanCancel}}
+                        <form class="cancel-form" method="post" action="/bookings/{{.ID}}/cancel">
+                          <input type="hidden" name="_csrf" value="{{$.CSRF}}">
+                          <button class="danger">Cancelar</button>
+                        </form>
+                      {{end}}
+                    </div>
                   </article>
                 {{end}}
               </div>
@@ -225,256 +272,14 @@
 
       {{if not .Rooms}}
         <section class="card">
-          <p>Cadastre a primeira sala para começar.</p>
+          <p>{{if .IsAdmin}}Cadastre a primeira sala para começar.{{else}}Nenhuma sala está disponível no momento.{{end}}</p>
         </section>
       {{end}}
     </main>
 
-    {{if .Rooms}}
-      <dialog id="booking-dialog" {{if .Error}}data-open{{end}}>
-        {{if .Error}}
-          <div class="toast error" role="alert">
-            {{.Error}}
-            <button class="toast-close" aria-label="Fechar notificação">×</button>
-          </div>
-        {{end}}
-        <div class="dialog-title">
-          <h2>Nova reserva</h2>
-          <form method="dialog">
-            <button class="close" aria-label="Fechar">×</button>
-          </form>
-        </div>
-        <form id="booking-form" method="post" action="/bookings">
-          <label>
-            Sala
-            <select name="room_id" required>
-              {{range .Rooms}}
-                <option value="{{.ID}}" {{if eq .ID $.Form.RoomID}}selected{{end}}>
-                  {{.Name}} · {{.Capacity}} pessoas
-                </option>
-              {{end}}
-            </select>
-          </label>
-          <label>
-            Responsável
-            <input name="owner" value="{{.Form.Owner}}" maxlength="100" required autocomplete="name">
-          </label>
-          <label>
-            Título
-            <input name="title" value="{{.Form.Title}}" maxlength="150" required>
-          </label>
-          <label>
-            Descrição
-            <textarea name="description" maxlength="1000">{{.Form.Description}}</textarea>
-          </label>
-          <div class="grid">
-            <label>
-              Data
-              <input type="date" name="day" value="{{.Form.Day}}" min="{{now}}" required>
-            </label>
-            <label>
-              Início
-              <input type="time" name="starts" value="{{.Form.Starts}}" required>
-            </label>
-            <label>
-              Fim
-              <input type="time" name="ends" value="{{.Form.Ends}}" required>
-            </label>
-          </div>
-          <button>Confirmar reserva</button>
-        </form>
-      </dialog>
-
-      <dialog id="booking-details-dialog">
-        <div class="dialog-title">
-          <h2 data-detail="title">Detalhes da reserva</h2>
-          <form method="dialog">
-            <button class="close" aria-label="Fechar">×</button>
-          </form>
-        </div>
-        <dl class="booking-detail-list">
-          <div>
-            <dt>Sala</dt>
-            <dd data-detail="room"></dd>
-          </div>
-          <div>
-            <dt>Data</dt>
-            <dd data-detail="day"></dd>
-          </div>
-          <div>
-            <dt>Horário</dt>
-            <dd data-detail="time"></dd>
-          </div>
-          <div>
-            <dt>Responsável</dt>
-            <dd data-detail="owner"></dd>
-          </div>
-          <div>
-            <dt>Descrição</dt>
-            <dd data-detail="description"></dd>
-          </div>
-        </dl>
-        <form id="booking-detail-cancel" class="cancel-form" method="post">
-          <button class="danger">Cancelar</button>
-        </form>
-      </dialog>
-    {{end}}
-
-    <dialog id="room-dialog" {{if eq .RoomDialog "create"}}data-open{{end}}>
-      {{if and .RoomError (eq .RoomDialog "create")}}
-        <div class="toast error" role="alert">
-          {{.RoomError}}
-          <button class="toast-close" aria-label="Fechar notificação">×</button>
-        </div>
-      {{end}}
-      <div class="dialog-title">
-        <h2>Cadastrar sala</h2>
-        <form method="dialog">
-          <button class="close" aria-label="Fechar">×</button>
-        </form>
-      </div>
-      <form id="room-form" method="post" action="/rooms">
-        <label>
-          Nome
-          <input name="name" maxlength="100" required>
-        </label>
-        <div class="grid">
-          <label>
-            Capacidade
-            <input type="number" min="1" name="capacity" required>
-          </label>
-          <label>
-            Localização
-            <input name="location" maxlength="200">
-          </label>
-        </div>
-        <label>
-          Recursos
-          <input name="resources" maxlength="200" placeholder="TV, projetor, quadro branco">
-        </label>
-        <label>
-          Descrição
-          <textarea name="description" maxlength="1000"></textarea>
-        </label>
-        <button>Cadastrar sala</button>
-      </form>
-    </dialog>
-
-    <dialog id="rooms-dialog" {{if eq .RoomDialog "manage"}}data-open{{end}}>
-      {{if and .RoomError (eq .RoomDialog "manage")}}
-        <div class="toast error" role="alert">
-          {{.RoomError}}
-          <button class="toast-close" aria-label="Fechar notificação">×</button>
-        </div>
-      {{end}}
-      <div class="dialog-title">
-        <h2>Gerenciar salas</h2>
-        <form method="dialog">
-          <button class="close" aria-label="Fechar">×</button>
-        </form>
-      </div>
-      <button id="new-room" type="button">Cadastrar sala</button>
-      <div class="managed-rooms">
-        {{range .Rooms}}
-          <article class="managed-room">
-            <div>
-              <strong>{{.Name}}</strong>
-              <br>
-              <span class="muted">
-                {{.Capacity}} pessoas{{if .Location}} · {{.Location}}{{end}}
-              </span>
-            </div>
-            <div class="room-actions">
-              <button
-                class="view-room"
-                type="button"
-                data-name="{{.Name}}"
-                data-capacity="{{.Capacity}}"
-                data-location="{{.Location}}"
-                data-resources="{{.Resources}}"
-                data-description="{{.Description}}"
-              >Visualizar</button>
-              <button
-                class="edit-room"
-                type="button"
-                data-id="{{.ID}}"
-                data-name="{{.Name}}"
-                data-capacity="{{.Capacity}}"
-                data-location="{{.Location}}"
-                data-resources="{{.Resources}}"
-                data-description="{{.Description}}"
-              >Editar</button>
-              <form class="delete-room" method="post" action="/rooms/{{.ID}}/delete">
-                <button>Excluir</button>
-              </form>
-            </div>
-          </article>
-        {{else}}
-          <p class="empty">Nenhuma sala cadastrada.</p>
-        {{end}}
-      </div>
-    </dialog>
-
-    <dialog id="edit-room-dialog">
-      <div class="dialog-title">
-        <h2>Editar sala</h2>
-        <form method="dialog">
-          <button class="close" aria-label="Fechar">×</button>
-        </form>
-      </div>
-      <form id="edit-room-form" method="post">
-        <label>
-          Nome
-          <input name="name" maxlength="100" required>
-        </label>
-        <div class="grid">
-          <label>
-            Capacidade
-            <input type="number" min="1" name="capacity" required>
-          </label>
-          <label>
-            Localização
-            <input name="location" maxlength="200">
-          </label>
-        </div>
-        <label>
-          Recursos
-          <input name="resources" maxlength="200">
-        </label>
-        <label>
-          Descrição
-          <textarea name="description" maxlength="1000"></textarea>
-        </label>
-        <button>Salvar alterações</button>
-      </form>
-    </dialog>
-
-    <dialog id="view-room-dialog">
-      <div class="dialog-title">
-        <h2 data-room-detail="name">Sala</h2>
-        <form method="dialog">
-          <button class="close" aria-label="Fechar">×</button>
-        </form>
-      </div>
-      <dl class="room-detail-list">
-        <div>
-          <dt>Capacidade</dt>
-          <dd data-room-detail="capacity"></dd>
-        </div>
-        <div>
-          <dt>Localização</dt>
-          <dd data-room-detail="location"></dd>
-        </div>
-        <div>
-          <dt>Recursos</dt>
-          <dd data-room-detail="resources"></dd>
-        </div>
-        <div>
-          <dt>Descrição</dt>
-          <dd data-room-detail="description"></dd>
-        </div>
-      </dl>
-    </dialog>
+    {{template "booking-dialogs" .}}
+    {{template "management-dialogs" .}}
+    {{template "room-dialogs" .}}
   </body>
 </html>
 {{end}}

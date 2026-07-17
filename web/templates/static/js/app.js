@@ -3,6 +3,9 @@ const roomDialog = document.querySelector('#room-dialog');
 const roomsDialog = document.querySelector('#rooms-dialog');
 const editRoomDialog = document.querySelector('#edit-room-dialog');
 const viewRoomDialog = document.querySelector('#view-room-dialog');
+const requestsDialog = document.querySelector('#requests-dialog');
+const usersDialog = document.querySelector('#users-dialog');
+const editBookingDialog = document.querySelector('#edit-booking-dialog');
 const presentationToggle = document.querySelector('#presentation-toggle');
 const automaticRefreshToggle = document.querySelector('#automatic-refresh-toggle');
 const sidebarToggle = document.querySelector('#toggle-sidebar');
@@ -97,9 +100,17 @@ document.querySelector('#manage-rooms')?.addEventListener('click', button => {
   button.currentTarget.closest('details').open = false;
   roomsDialog.showModal();
 });
+document.querySelector('#manage-requests')?.addEventListener('click', button => {
+  button.currentTarget.closest('details').open = false;
+  requestsDialog.showModal();
+});
+document.querySelector('#manage-users')?.addEventListener('click', button => {
+  button.currentTarget.closest('details').open = false;
+  usersDialog.showModal();
+});
 let presentationMode = false;
 try { presentationMode = sessionStorage.getItem('presentation-mode') === 'true'; } catch {}
-let automaticRefresh = true;
+let automaticRefresh = false;
 try {
   const savedAutomaticRefresh = sessionStorage.getItem('automatic-refresh');
   if (savedAutomaticRefresh !== null) automaticRefresh = savedAutomaticRefresh === 'true';
@@ -118,7 +129,8 @@ const refreshAgenda = async () => {
   const day = localDay();
   try {
     if (sessionStorage.getItem('automatic-refresh-day') !== day) {
-      const response = await fetch('/agenda/today', { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams({ day }) });
+      const csrf = document.querySelector('input[name="_csrf"]').value;
+      const response = await fetch('/agenda/today', { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams({ day, _csrf: csrf }) });
       if (!response.ok) throw new Error(response.status);
       sessionStorage.setItem('automatic-refresh-day', day);
       sessionStorage.setItem('automatic-refresh-notice', 'true');
@@ -128,7 +140,15 @@ const refreshAgenda = async () => {
     const response = await fetch(location.href, { headers: { Accept: 'text/html' } });
     if (!response.ok) throw new Error(response.status);
     const doc = new DOMParser().parseFromString(await response.text(), 'text/html');
-    const swapped = ['.agenda-view', '#agenda-filter select[name="room_id"]', '#booking-form select[name="room_id"]', '#rooms-dialog .managed-rooms'].every(selector => {
+    const swapped = [
+      '.agenda-view',
+      '#agenda-filter select[name="room_id"]',
+      '#booking-form select[name="room_id"]',
+      '#rooms-dialog .managed-rooms',
+      '#requests-dialog .managed-rooms',
+      '#manage-requests',
+      '#managed-users'
+    ].every(selector => {
       const current = document.querySelector(selector);
       const updated = doc.querySelector(selector);
       if (!current && !updated) return true;
@@ -161,6 +181,9 @@ document.addEventListener('focusout', flushRefresh);
 document.addEventListener('submit', event => {
   if (event.target.matches('.cancel-form') && !confirm('Cancelar este agendamento?')) event.preventDefault();
   if (event.target.matches('.delete-room') && !confirm('Excluir esta sala?')) event.preventDefault();
+  if (event.target.action?.endsWith('/approve') && !confirm('Aprovar esta solicitação?')) event.preventDefault();
+  if (event.target.action?.endsWith('/reject') && !confirm('Rejeitar esta solicitação?')) event.preventDefault();
+  if (event.target.action?.endsWith('/users/role') && !confirm('Alterar a permissão deste usuário?')) event.preventDefault();
   if (!event.defaultPrevented && !event.target.matches('[hx-get], [hx-post]')) eventSource.close();
 });
 const scheduleAutomaticRefresh = () => {
@@ -222,9 +245,20 @@ document.addEventListener('click', event => {
     detailsDialog.querySelector('[data-detail="time"]').textContent = `${details.starts}–${details.ends}`;
     detailsDialog.querySelector('[data-detail="owner"]').textContent = details.owner;
     detailsDialog.querySelector('[data-detail="description"]').textContent = details.description || 'Sem descrição.';
+    detailsDialog.querySelector('[data-detail="status"]').textContent = details.status === 'pending' ? 'Pendente' : 'Aprovada';
     detailCancelForm.action = `/bookings/${details.id}/cancel`;
-    detailCancelForm.toggleAttribute('hidden', new Date(`${details.dayIso}T${details.ends}:00`) <= new Date());
+    detailCancelForm.toggleAttribute('hidden', details.canCancel !== 'true' || new Date(`${details.dayIso}T${details.ends}:00`) <= new Date());
     detailsDialog.showModal();
+    return;
+  }
+  const editBookingButton = event.target.closest('.edit-booking');
+  if (editBookingButton) {
+    const form = document.querySelector('#edit-booking-form');
+    form.action = `/bookings/${editBookingButton.dataset.id}/edit`;
+    ['roomId', 'owner', 'title', 'description', 'day', 'starts', 'ends'].forEach(field => {
+      form.elements[field === 'roomId' ? 'room_id' : field].value = editBookingButton.dataset[field];
+    });
+    editBookingDialog.showModal();
     return;
   }
   const editButton = event.target.closest('.edit-room');
@@ -243,3 +277,13 @@ document.addEventListener('click', event => {
     viewRoomDialog.showModal();
   }
 });
+
+const filterUsers = () => {
+  const query = document.querySelector('#user-filter')?.value.toLocaleLowerCase('pt-BR').trim() || '';
+  const role = document.querySelector('#user-role-filter')?.value || '';
+  document.querySelectorAll('#managed-users [data-user]').forEach(user => {
+    user.hidden = !user.dataset.user.toLocaleLowerCase('pt-BR').includes(query) || role !== '' && user.dataset.role !== role;
+  });
+};
+document.querySelector('#user-filter')?.addEventListener('input', filterUsers);
+document.querySelector('#user-role-filter')?.addEventListener('change', filterUsers);

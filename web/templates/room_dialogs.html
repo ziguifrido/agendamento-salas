@@ -1,0 +1,166 @@
+{{define "room-dialogs"}}
+    {{if .IsAdmin}}
+    <dialog id="room-dialog" {{if eq .RoomDialog "create"}}data-open{{end}}>
+      {{if and .RoomError (eq .RoomDialog "create")}}
+        <div class="toast error" role="alert">
+          {{.RoomError}}
+          <button class="toast-close" aria-label="Fechar notificação">×</button>
+        </div>
+      {{end}}
+      <div class="dialog-title">
+        <h2>Cadastrar sala</h2>
+        <form method="dialog">
+          <button class="close" aria-label="Fechar">×</button>
+        </form>
+      </div>
+      <form id="room-form" method="post" action="/rooms">
+        <input type="hidden" name="_csrf" value="{{.CSRF}}">
+        <label>
+          Nome
+          <input name="name" maxlength="100" required>
+        </label>
+        <div class="grid">
+          <label>
+            Capacidade
+            <input type="number" min="1" name="capacity" required>
+          </label>
+          <label>
+            Localização
+            <input name="location" maxlength="200">
+          </label>
+        </div>
+        <label>
+          Recursos
+          <input name="resources" maxlength="200" placeholder="TV, projetor, quadro branco">
+        </label>
+        <label>
+          Descrição
+          <textarea name="description" maxlength="1000"></textarea>
+        </label>
+        <button>Cadastrar sala</button>
+      </form>
+    </dialog>
+    {{end}}
+
+    <dialog id="rooms-dialog" {{if eq .RoomDialog "manage"}}data-open{{end}}>
+      {{if and .RoomError (eq .RoomDialog "manage")}}
+        <div class="toast error" role="alert">
+          {{.RoomError}}
+          <button class="toast-close" aria-label="Fechar notificação">×</button>
+        </div>
+      {{end}}
+      <div class="dialog-title">
+        <h2>{{if .IsAdmin}}Gerenciar salas{{else}}Salas{{end}}</h2>
+        <form method="dialog">
+          <button class="close" aria-label="Fechar">×</button>
+        </form>
+      </div>
+      {{if .IsAdmin}}<button id="new-room" type="button">Cadastrar sala</button>{{end}}
+      <div class="managed-rooms">
+        {{range .Rooms}}
+          <article class="managed-room">
+            <div>
+              <strong>{{.Name}}</strong>
+              <br>
+              <span class="muted">
+                {{.Capacity}} pessoas{{if .Location}} · {{.Location}}{{end}}
+              </span>
+            </div>
+            <div class="room-actions">
+              <button
+                class="view-room"
+                type="button"
+                data-name="{{.Name}}"
+                data-capacity="{{.Capacity}}"
+                data-location="{{.Location}}"
+                data-resources="{{.Resources}}"
+                data-description="{{.Description}}"
+              >Visualizar</button>
+              {{if $.IsAdmin}}
+                <button
+                  class="edit-room"
+                  type="button"
+                  data-id="{{.ID}}"
+                  data-name="{{.Name}}"
+                  data-capacity="{{.Capacity}}"
+                  data-location="{{.Location}}"
+                  data-resources="{{.Resources}}"
+                  data-description="{{.Description}}"
+                >Editar</button>
+                <form class="delete-room" method="post" action="/rooms/{{.ID}}/delete">
+                  <input type="hidden" name="_csrf" value="{{$.CSRF}}">
+                  <button>Excluir</button>
+                </form>
+              {{end}}
+            </div>
+          </article>
+        {{else}}
+          <p class="empty">Nenhuma sala cadastrada.</p>
+        {{end}}
+      </div>
+    </dialog>
+
+    {{if .IsAdmin}}
+    <dialog id="edit-room-dialog">
+      <div class="dialog-title">
+        <h2>Editar sala</h2>
+        <form method="dialog">
+          <button class="close" aria-label="Fechar">×</button>
+        </form>
+      </div>
+      <form id="edit-room-form" method="post">
+        <input type="hidden" name="_csrf" value="{{.CSRF}}">
+        <label>
+          Nome
+          <input name="name" maxlength="100" required>
+        </label>
+        <div class="grid">
+          <label>
+            Capacidade
+            <input type="number" min="1" name="capacity" required>
+          </label>
+          <label>
+            Localização
+            <input name="location" maxlength="200">
+          </label>
+        </div>
+        <label>
+          Recursos
+          <input name="resources" maxlength="200">
+        </label>
+        <label>
+          Descrição
+          <textarea name="description" maxlength="1000"></textarea>
+        </label>
+        <button>Salvar alterações</button>
+      </form>
+    </dialog>
+    {{end}}
+
+    <dialog id="view-room-dialog">
+      <div class="dialog-title">
+        <h2 data-room-detail="name">Sala</h2>
+        <form method="dialog">
+          <button class="close" aria-label="Fechar">×</button>
+        </form>
+      </div>
+      <dl class="room-detail-list">
+        <div>
+          <dt>Capacidade</dt>
+          <dd data-room-detail="capacity"></dd>
+        </div>
+        <div>
+          <dt>Localização</dt>
+          <dd data-room-detail="location"></dd>
+        </div>
+        <div>
+          <dt>Recursos</dt>
+          <dd data-room-detail="resources"></dd>
+        </div>
+        <div>
+          <dt>Descrição</dt>
+          <dd data-room-detail="description"></dd>
+        </div>
+      </dl>
+    </dialog>
+{{end}}

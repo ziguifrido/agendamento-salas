@@ -82,6 +82,22 @@ button:disabled{
 .new-booking{
   width:auto;
   padding-inline:var(--space-6)}
+.account-actions{
+  display:flex;
+  align-items:center;
+  gap:var(--space-3)}
+.account-actions form{
+  margin:0}
+.account-actions button{
+  width:auto;
+  margin:0}
+.secondary{
+  background:var(--surface);
+  color:var(--text);
+  border-color:var(--border)}
+.secondary:hover{
+  background:var(--surface-secondary);
+  border-color:var(--border)}
 .agenda-layout{
   display:block}
 .agenda-sidebar{
@@ -193,7 +209,7 @@ body.sidebar-collapsed .agenda-filter{
 body.presentation main{
   margin-left:0;
   padding-inline:var(--space-8)}
-body.presentation .agenda-sidebar,body.presentation .new-booking,body.presentation .cancel-form{
+body.presentation .agenda-sidebar,body.presentation .account-actions,body.presentation .cancel-form{
   display:none}
 body.presentation .booking-details{
   cursor:default;
@@ -319,6 +335,31 @@ body.presentation #exit-presentation:hover{
   color:var(--text-muted)}
 .booking.ongoing{
   border:2px solid var(--primary)}
+.booking.pending{
+  border-style:dashed;
+  opacity:.85}
+.status{
+  display:inline-block;
+  margin-left:var(--space-2);
+  padding:2px var(--space-2);
+  border-radius:999px;
+  font-size:12px;
+  font-weight:700}
+.status.pending{
+  background:color-mix(in srgb,var(--highlight),transparent 80%);
+  color:var(--text)}
+.status.approved{
+  background:color-mix(in srgb,var(--success),transparent 85%);
+  color:var(--success)}
+.status.rejected{
+  background:color-mix(in srgb,var(--error),transparent 85%);
+  color:var(--error)}
+.booking-actions{
+  display:flex;
+  align-items:center;
+  gap:var(--space-2)}
+.booking-actions form{
+  margin:0}
 .booking-details{
   flex:1;
   margin:0;
@@ -377,6 +418,9 @@ body.presentation #exit-presentation:hover{
   background:var(--error);
   border-color:var(--error);
   color:var(--on-primary)}
+.approve{
+  color:var(--success)!important;
+  border-color:var(--success)!important}
 .danger:hover,.booking .danger:hover{
   background:color-mix(in srgb,var(--error),var(--text) 20%);
   border-color:color-mix(in srgb,var(--error),var(--text) 20%);
@@ -434,6 +478,8 @@ dialog{
   box-shadow:var(--shadow-md);
   width:min(560px,calc(100% - 32px));
   padding:var(--space-6)}
+#users-dialog,#requests-dialog{
+  width:min(760px,calc(100% - 32px))}
 dialog::backdrop{
   background:var(--overlay)}
 .dialog-title{
@@ -465,6 +511,38 @@ dialog::backdrop{
 .close:hover{
   background:var(--surface-secondary);
   color:var(--text)}
+.login-page{
+  min-height:100vh;
+  display:grid;
+  place-items:center;
+  padding:var(--space-4)}
+.login-card{
+  width:min(420px,100%);
+  margin:0;
+  padding:var(--space-8);
+  text-align:center;
+  background:var(--surface);
+  border:1px solid var(--border);
+  border-radius:var(--radius-lg);
+  box-shadow:var(--shadow-md)}
+.login-error{
+  padding:var(--space-3);
+  border-radius:var(--radius-sm);
+  background:var(--toast-error-bg);
+  color:var(--toast-error-text)}
+.google-login{
+  display:block;
+  min-height:48px;
+  margin-top:var(--space-6);
+  padding:var(--space-3);
+  border:1px solid var(--border);
+  border-radius:var(--radius-sm);
+  background:var(--surface-secondary);
+  color:var(--text);
+  font-weight:700;
+  text-decoration:none}
+.google-login:hover{
+  border-color:var(--primary)}
 @media(max-width:800px){
   body{
     --sidebar-width:0px}
@@ -474,6 +552,9 @@ dialog::backdrop{
 .grid{
   grid-template-columns:1fr}
 .page-title{
+  align-items:stretch;
+  flex-direction:column}
+.account-actions{
   align-items:stretch;
   flex-direction:column}
 .new-booking{

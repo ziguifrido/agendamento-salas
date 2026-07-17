@@ -1,0 +1,83 @@
+{{define "management-dialogs"}}
+    <dialog id="requests-dialog">
+      <div class="dialog-title">
+        <h2>{{if .IsAdmin}}Solicitações pendentes{{else}}Minhas solicitações{{end}}</h2>
+        <form method="dialog"><button class="close" aria-label="Fechar">×</button></form>
+      </div>
+      <div class="managed-rooms">
+        {{range .Requests}}
+          <article class="managed-room">
+            <div>
+              <strong>{{dateBR .Day}} · {{.Starts}}–{{.Ends}} · {{.Room}}</strong>
+              <br><span>{{.Title}} · {{.Owner}}</span>
+              <br><span class="status {{.Status}}">{{if eq .Status "pending"}}Pendente{{else if eq .Status "approved"}}Aprovada{{else}}Rejeitada{{end}}</span>
+              {{if $.IsAdmin}}<br><span class="muted">{{.RequesterEmail}}</span>{{end}}
+            </div>
+            <div class="room-actions">
+              {{if .CanReview}}
+                <form method="post" action="/bookings/{{.ID}}/approve">
+                  <input type="hidden" name="_csrf" value="{{$.CSRF}}">
+                  <button class="approve">Aprovar</button>
+                </form>
+                <form method="post" action="/bookings/{{.ID}}/reject">
+                  <input type="hidden" name="_csrf" value="{{$.CSRF}}">
+                  <button class="danger">Rejeitar</button>
+                </form>
+              {{end}}
+              {{if .CanCancel}}
+                <form class="cancel-form" method="post" action="/bookings/{{.ID}}/cancel">
+                  <input type="hidden" name="_csrf" value="{{$.CSRF}}">
+                  <button class="danger">Cancelar</button>
+                </form>
+              {{end}}
+            </div>
+          </article>
+        {{else}}
+          <p class="empty">Nenhuma solicitação pendente.</p>
+        {{end}}
+      </div>
+    </dialog>
+
+    {{if .IsAdmin}}
+      <dialog id="users-dialog">
+        <div class="dialog-title">
+          <h2>Gerenciar usuários</h2>
+          <form method="dialog"><button class="close" aria-label="Fechar">×</button></form>
+        </div>
+        <label>
+          Pesquisar usuários
+          <input id="user-filter" type="search" placeholder="Nome ou e-mail">
+        </label>
+        <label>
+          Papel
+          <select id="user-role-filter">
+            <option value="">Todos</option>
+            <option value="admin">Administradores</option>
+            <option value="user">Usuários</option>
+          </select>
+        </label>
+        <div class="managed-rooms" id="managed-users">
+          {{range .Users}}
+            <article class="managed-room" data-user="{{.Name}} {{.Email}}" data-role="{{.Role}}">
+              <div>
+                <strong>{{.Name}}</strong><br>
+                <span>{{.Email}}</span><br>
+                <span class="muted">{{if eq .Role "admin"}}Administrador{{else}}Usuário{{end}} · último acesso {{.LastLogin}}</span>
+              </div>
+              <form method="post" action="/users/role">
+                <input type="hidden" name="_csrf" value="{{$.CSRF}}">
+                <input type="hidden" name="email" value="{{.Email}}">
+                {{if eq .Role "admin"}}
+                  <input type="hidden" name="role" value="user">
+                  <button>Remover administrador</button>
+                {{else}}
+                  <input type="hidden" name="role" value="admin">
+                  <button>Promover</button>
+                {{end}}
+              </form>
+            </article>
+          {{end}}
+        </div>
+      </dialog>
+    {{end}}
+{{end}}
