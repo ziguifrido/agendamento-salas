@@ -98,7 +98,7 @@ func sqliteDSN(path string) string {
 	if !strings.HasPrefix(path, "file:") {
 		path = "file:" + path
 	}
-	return path + separator + "_pragma=foreign_keys(1)"
+	return path + separator + "_pragma=foreign_keys(1)&_pragma=busy_timeout(5000)"
 }
 
 func migrate(db *sql.DB) error {
@@ -386,7 +386,7 @@ func (a *App) bookings(w http.ResponseWriter, r *http.Request) {
 		a.redirect(w, r, "", "Um ou mais campos excedem o tamanho permitido")
 		return
 	}
-	result, err := a.db.Exec(`INSERT INTO bookings(room_id,owner,title,description,day,starts,ends)
+	result, err := a.db.ExecContext(r.Context(), `INSERT INTO bookings(room_id,owner,title,description,day,starts,ends)
 SELECT ?,?,?,?,?,?,?
 WHERE NOT EXISTS (SELECT 1 FROM bookings WHERE room_id=? AND day=? AND starts < ? AND ends > ?)`, room, owner, title, description, day, starts, ends, room, day, ends, starts)
 	if err != nil {

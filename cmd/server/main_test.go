@@ -1,12 +1,14 @@
 package main
 
 import (
+	"context"
 	"database/sql"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 )
 
@@ -91,7 +93,8 @@ func TestSQLiteDSNEnablesForeignKeysOnEveryConnection(t *testing.T) {
 }
 
 func TestBookingConflictIsRejected(t *testing.T) {
-	db, err := sql.Open("sqlite", sqliteDSN(filepath.Join(t.TempDir(), "test.db")))
+	dsn := sqliteDSN(filepath.Join(t.TempDir(), "test.db"))
+	db, err := sql.Open("sqlite", dsn)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -102,17 +105,63 @@ func TestBookingConflictIsRejected(t *testing.T) {
 	if _, err := db.Exec("INSERT INTO rooms(name,capacity) VALUES('Sala 1',10)"); err != nil {
 		t.Fatal(err)
 	}
-	a := &App{db: db}
-	for range 2 {
-		form := url.Values{"room_id": {"1"}, "owner": {"Ana"}, "title": {"Planejamento"}, "day": {"2999-01-01"}, "starts": {"09:00"}, "ends": {"10:00"}}
-		r := httptest.NewRequest(http.MethodPost, "/bookings", strings.NewReader(form.Encode()))
-		r.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-		a.bookings(httptest.NewRecorder(), r)
+	otherDB, err := sql.Open("sqlite", dsn)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer otherDB.Close()
+
+	start := make(chan struct{})
+	responses := make(chan flash, 2)
+	var wg sync.WaitGroup
+	for _, app := range []*App{{db: db}, {db: otherDB}} {
+		ctx, cancel := context.WithCancel(t.Context())
+		defer cancel()
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			<-start
+			form := url.Values{"room_id": {"1"}, "owner": {"Ana"}, "title": {"Planejamento"}, "day": {"2999-01-01"}, "starts": {"09:00"}, "ends": {"10:00"}}
+			r := httptest.NewRequest(http.MethodPost, "/bookings", strings.NewReader(form.Encode())).WithContext(ctx)
+			r.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+			w := httptest.NewRecorder()
+			app.bookings(w, r)
+			responses <- flashFromResponse(t, w)
+		}()
+	}
+	close(start)
+	wg.Wait()
+	close(responses)
+
+	var successes, conflicts int
+	for response := range responses {
+		if response.Message == "Reserva criada" {
+			successes++
+		}
+		if response.Error == "Esta sala já está reservada nesse horário" {
+			conflicts++
+		}
+	}
+	if successes != 1 || conflicts != 1 {
+		t.Fatalf("expected one success and one conflict: success=%d conflict=%d", successes, conflicts)
 	}
 	var count int
 	if err := db.QueryRow("SELECT COUNT(*) FROM bookings").Scan(&count); err != nil || count != 1 {
 		t.Fatalf("expected one booking: %d, %v", count, err)
 	}
+}
+
+func flashFromResponse(t *testing.T, w *httptest.ResponseRecorder) flash {
+	t.Helper()
+	r := httptest.NewRequest(http.MethodGet, "/", nil)
+	for _, cookie := range w.Result().Cookies() {
+		if cookie.Name == "flash" {
+			r.AddCookie(cookie)
+			return readFlash(httptest.NewRecorder(), r)
+		}
+	}
+	t.Fatal("flash cookie missing")
+	return flash{}
 }
 
 func TestDateBR(t *testing.T) {
