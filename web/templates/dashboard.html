@@ -50,14 +50,15 @@
           <form
             id="agenda-filter"
             class="agenda-filter"
-            method="get"
-            action="/"
-            hx-get="/"
+            method="post"
+            action="/agenda/filter"
+            hx-post="/agenda/filter"
             hx-target=".agenda-view"
             hx-select=".agenda-view"
             hx-select-oob="#agenda-filter:outerHTML"
             hx-swap="outerHTML"
           >
+            <input type="hidden" name="_csrf" value="{{.CSRF}}">
             <h2>Filtros</h2>
             <label>
               Tipo de agenda
@@ -91,13 +92,13 @@
                   aria-label="Pesquisar"
                 >
                 {{if .Query}}
-                  <a
+                  <button
+                    id="clear-agenda-search"
+                    type="button"
                     class="clear-search"
-                    href="/"
                     aria-label="Limpar pesquisa"
                     title="Limpar pesquisa"
-                    hx-get="/"
-                  >×</a>
+                  >×</button>
                 {{end}}
               </span>
             </label>
@@ -231,7 +232,7 @@
                       {{.Title}} <span class="muted">· {{.Owner}}</span>
                       {{if eq .Status "pending"}}<span class="status pending">Pendente</span>{{end}}
                       {{if .Description}}
-                        <p>{{.Description}}</p>
+                        <span class="booking-description">{{.Description}}</span>
                       {{end}}
                     </button>
                     <div class="booking-actions">

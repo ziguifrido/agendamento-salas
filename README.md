@@ -25,7 +25,8 @@ O **Reserva de Salas de Reunião** foi pensado para equipes que precisam de uma 
 - Cadastro e gestão de salas em dialogs: visualizar, editar e excluir.
 - Login exclusivo pelo Google, com restrição opcional de domínio e papéis de administrador e usuário.
 - Solicitação de reservas por usuários e aprovação ou rejeição por administradores.
-- Criação, edição, detalhamento e cancelamento de reservas em andamento ou futuras.
+- Usuários podem cancelar apenas as próprias solicitações enquanto pendentes.
+- Administradores podem criar, editar e cancelar reservas não encerradas.
 - Agendamentos encerrados escurecidos e agendamentos em andamento destacados.
 - Bloqueio de horários sobrepostos para a mesma sala.
 - Notificações empilhadas, descartáveis e temporárias.
@@ -82,7 +83,7 @@ docker compose down
 5. Administradores usam **Gerenciar usuários** para pesquisar, filtrar e alterar papéis.
 6. Use o botão com seta para recolher ou ampliar o painel lateral conforme necessário.
 
-Use a busca para localizar reservas e alterne entre as visões diária e semanal conforme necessário. Clique em uma reserva para ver seus detalhes; o botão **Cancelar** remove reservas não encerradas após confirmação. Pelo menu de configurações, escolha o tema claro, escuro ou automático e habilite o modo apresentação ou a atualização automática. Ambos verificam a virada do dia a cada 60 segundos e selecionam a data local atual do navegador quando necessário.
+Use a busca para localizar reservas e alterne entre as visões diária e semanal conforme necessário. Clique em uma reserva para ver seus detalhes. Usuários podem cancelar somente suas próprias solicitações pendentes; administradores podem editar e cancelar reservas não encerradas. Pelo menu de configurações, escolha o tema claro, escuro ou automático e habilite o modo apresentação ou a atualização automática. Ambos verificam a virada do dia a cada 60 segundos e selecionam a data local atual do navegador quando necessário.
 
 ## Configuração
 
@@ -90,6 +91,8 @@ Use a busca para localizar reservas e alterne entre as visões diária e semanal
 | --- | --- | --- |
 | `ADDR` | `:8080` | Endereço e porta em que o servidor escuta. |
 | `DATABASE_PATH` | `data/reservas.db` | Caminho do arquivo SQLite. |
+| `HOST_PORT` | `8080` | Porta publicada no host pelo Docker Compose. |
+| `SERVER_PORT` | `8080` | Porta interna usada pelo servidor no Docker Compose. |
 | `GOOGLE_CLIENT_ID` | — | Client ID OAuth 2.0 do Google. Obrigatório. |
 | `GOOGLE_CLIENT_SECRET` | — | Client secret OAuth 2.0 do Google. Obrigatório. |
 | `GOOGLE_REDIRECT_URL` | — | Callback cadastrado no Google, como `https://salas.exemplo.com/auth/google/callback`. Obrigatório. |
@@ -111,7 +114,7 @@ INITIAL_ADMIN_USERS=admin@empresa.com.br
 - As tabelas, colunas e índices são criados automaticamente de forma idempotente na inicialização.
 - Reservas devem ter data válida, não anterior ao dia atual e horário de início menor que o de término.
 - Uma sala não pode ter reservas aprovadas com horários sobrepostos no mesmo dia; solicitações pendentes são exibidas sem bloquear o horário.
-- A data, visualização e filtro de sala da agenda são guardados em cookies de sessão.
+- A data, a busca, a visualização e o filtro de sala da agenda são guardados em cookies de sessão.
 - Mensagens e dados de formulário após erro usam um cookie temporário, consumido no próximo carregamento; por isso não são incluídos na URL. A pilha visual de notificações é mantida no `sessionStorage` até o descarte individual.
 - As preferências de tema, apresentação, atualização automática e painel lateral são mantidas no `sessionStorage`. O estado temporal dos agendamentos usa o relógio local do navegador.
 - Sessões usam tokens aleatórios armazenados apenas como hash no banco e cookies `HttpOnly`, `SameSite=Lax` e `Secure` sob HTTPS.

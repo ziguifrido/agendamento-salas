@@ -14,5 +14,5 @@ USER app
 ENV DATABASE_PATH=data/reservas.db
 VOLUME /app/data
 EXPOSE 8080
-HEALTHCHECK --interval=30s --timeout=3s CMD wget -qO- "http://localhost${ADDR:-:8080}/" >/dev/null || exit 1
+HEALTHCHECK --interval=30s --timeout=3s CMD port="${ADDR##*:}"; wget -qO- "http://localhost:${port:-8080}/healthz" >/dev/null || exit 1
 CMD ["salas"]
