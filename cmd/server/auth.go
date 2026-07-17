@@ -156,7 +156,7 @@ email=? AND role='admin' AND ?='user' AND (SELECT COUNT(*) FROM users WHERE role
 }
 
 func (a *App) userList() ([]User, error) {
-	rows, err := a.db.Query("SELECT email,name,avatar_url,role,created_at,updated_at,last_login FROM users ORDER BY name,email")
+	rows, err := a.db.Query("SELECT email,name,avatar_url,role,created_at,updated_at,last_login FROM users ORDER BY name COLLATE NOCASE,email COLLATE NOCASE")
 	if err != nil {
 		return nil, err
 	}

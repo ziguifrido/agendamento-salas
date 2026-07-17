@@ -278,12 +278,23 @@ document.addEventListener('click', event => {
   }
 });
 
+const userFilter = document.querySelector('#user-filter');
+const clearUserFilter = document.querySelector('#clear-user-filter');
 const filterUsers = () => {
-  const query = document.querySelector('#user-filter')?.value.toLocaleLowerCase('pt-BR').trim() || '';
+  const query = userFilter?.value.toLocaleLowerCase('pt-BR').trim() || '';
   const role = document.querySelector('#user-role-filter')?.value || '';
   document.querySelectorAll('#managed-users [data-user]').forEach(user => {
-    user.hidden = !user.dataset.user.toLocaleLowerCase('pt-BR').includes(query) || role !== '' && user.dataset.role !== role;
+    const matches = user.dataset.user.toLocaleLowerCase('pt-BR').includes(query) && (role === '' || user.dataset.role === role);
+    user.hidden = !matches;
+    user.style.display = matches ? '' : 'none';
   });
+  if (clearUserFilter) clearUserFilter.hidden = userFilter.value === '';
 };
-document.querySelector('#user-filter')?.addEventListener('input', filterUsers);
+clearUserFilter?.addEventListener('click', () => {
+  userFilter.value = '';
+  filterUsers();
+  userFilter.focus();
+});
+userFilter?.addEventListener('input', filterUsers);
 document.querySelector('#user-role-filter')?.addEventListener('change', filterUsers);
+filterUsers();

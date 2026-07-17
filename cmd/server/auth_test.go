@@ -83,6 +83,23 @@ func TestAllowedEmailDomain(t *testing.T) {
 	}
 }
 
+func TestUserListIsSortedByName(t *testing.T) {
+	db := testDB(t)
+	now := time.Now().UTC().Format(time.RFC3339)
+	for _, user := range []struct{ email, name string }{{"bia@example.com", "bia"}, {"ana@example.com", "Ana"}, {"carla@example.com", "Carla"}} {
+		if _, err := db.Exec("INSERT INTO users(email,name,role,created_at,updated_at,last_login) VALUES(?,?,'user',?,?,?)", user.email, user.name, now, now, now); err != nil {
+			t.Fatal(err)
+		}
+	}
+	users, err := (&App{db: db}).userList()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(users) != 3 || users[0].Name != "Ana" || users[1].Name != "bia" || users[2].Name != "Carla" {
+		t.Fatalf("users are not sorted by name: %+v", users)
+	}
+}
+
 func TestCSRFRejectsInvalidToken(t *testing.T) {
 	called := false
 	handler := (&App{}).csrf(http.HandlerFunc(func(http.ResponseWriter, *http.Request) { called = true }))

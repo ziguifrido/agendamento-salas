@@ -44,18 +44,24 @@
           <h2>Gerenciar usuários</h2>
           <form method="dialog"><button class="close" aria-label="Fechar">×</button></form>
         </div>
-        <label>
-          Pesquisar usuários
-          <input id="user-filter" type="search" placeholder="Nome ou e-mail">
-        </label>
-        <label>
-          Papel
-          <select id="user-role-filter">
-            <option value="">Todos</option>
-            <option value="admin">Administradores</option>
-            <option value="user">Usuários</option>
-          </select>
-        </label>
+        <div id="user-filter-form" class="user-filter-form">
+          <div>
+            <label for="user-filter">Pesquisar usuários</label>
+            <span class="search-box user-filter-search">
+              <input id="user-filter" type="search" placeholder="Nome ou e-mail">
+              <button id="clear-user-filter" class="clear-search clear-user-filter" type="button" aria-label="Limpar pesquisa de usuários" title="Limpar" hidden>×</button>
+            </span>
+          </div>
+          <label>
+            Papel
+            <select id="user-role-filter">
+              <option value="">Todos</option>
+              <option value="admin">Administradores</option>
+              <option value="user">Usuários</option>
+            </select>
+          </label>
+        </div>
+        <hr class="user-list-separator">
         <div class="managed-rooms" id="managed-users">
           {{range .Users}}
             <article class="managed-room" data-user="{{.Name}} {{.Email}}" data-role="{{.Role}}">

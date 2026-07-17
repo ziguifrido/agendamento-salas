@@ -306,6 +306,19 @@ body.presentation #exit-presentation:hover{
 .clear-search:hover{
   background:var(--surface);
   color:var(--text)}
+.user-filter-search input{
+  padding-right:44px}
+.clear-user-filter{
+  margin:0;
+  padding:0;
+  border:0;
+  background:transparent}
+.clear-user-filter[hidden]{
+  display:none}
+.user-list-separator{
+  margin:var(--space-6) 0;
+  border:0;
+  border-top:1px solid var(--divider)}
 .day-nav{
   display:grid;
   grid-template-columns:repeat(3,1fr);
