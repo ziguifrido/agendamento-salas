@@ -100,13 +100,11 @@ document.querySelector('#manage-rooms')?.addEventListener('click', button => {
   button.currentTarget.closest('details').open = false;
   roomsDialog.showModal();
 });
-document.querySelector('#manage-requests')?.addEventListener('click', button => {
-  button.currentTarget.closest('details').open = false;
-  requestsDialog.showModal();
-});
-document.querySelector('#manage-users')?.addEventListener('click', button => {
-  button.currentTarget.closest('details').open = false;
-  usersDialog.showModal();
+document.addEventListener('click', event => {
+  const control = event.target.closest('#manage-requests, #manage-users');
+  if (!control) return;
+  control.closest('details').open = false;
+  (control.id === 'manage-requests' ? requestsDialog : usersDialog).showModal();
 });
 let presentationMode = false;
 try { presentationMode = sessionStorage.getItem('presentation-mode') === 'true'; } catch {}
@@ -137,13 +135,14 @@ const refreshAgenda = async () => {
       location.reload();
       return;
     }
-    const response = await fetch(location.href, { headers: { Accept: 'text/html' } });
+    const response = await fetch('/', { headers: { Accept: 'text/html' } });
     if (!response.ok) throw new Error(response.status);
     const doc = new DOMParser().parseFromString(await response.text(), 'text/html');
     const swapped = [
       '.agenda-view',
       '#agenda-filter select[name="room_id"]',
       '#booking-form select[name="room_id"]',
+      '#edit-booking-form select[name="room_id"]',
       '#rooms-dialog .managed-rooms',
       '#requests-dialog .managed-rooms',
       '#manage-requests',
@@ -157,6 +156,7 @@ const refreshAgenda = async () => {
       return true;
     });
     if (!swapped) throw new Error('estrutura divergente');
+    filterUsers();
     updateBookingStates();
     addToast('ok', 'Agenda atualizada automaticamente.');
   } catch {
@@ -290,6 +290,13 @@ const filterUsers = () => {
   });
   if (clearUserFilter) clearUserFilter.hidden = userFilter.value === '';
 };
+document.addEventListener('click', event => {
+  const clear = event.target.closest('#clear-agenda-search');
+  if (!clear) return;
+  const form = clear.closest('form');
+  form.querySelector('[name="q"]').value = '';
+  form.requestSubmit();
+});
 clearUserFilter?.addEventListener('click', () => {
   userFilter.value = '';
   filterUsers();
