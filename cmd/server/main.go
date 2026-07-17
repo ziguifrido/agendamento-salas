@@ -99,6 +99,7 @@ func main() {
 		panic("GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET e GOOGLE_REDIRECT_URL são obrigatórios")
 	}
 	mux := http.NewServeMux()
+	mux.HandleFunc("/healthz", health)
 	mux.Handle("/static/", http.StripPrefix("/static/", http.FileServer(http.Dir("web/templates/static"))))
 	mux.HandleFunc("/auth/google", a.googleLogin)
 	mux.HandleFunc("/auth/google/callback", a.googleCallback)
@@ -120,6 +121,14 @@ func main() {
 	if err := server.ListenAndServe(); err != nil {
 		a.log.Error("server stopped", "error", err)
 	}
+}
+
+func health(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet && r.Method != http.MethodHead {
+		http.NotFound(w, r)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
 }
 
 func security(next http.Handler) http.Handler {

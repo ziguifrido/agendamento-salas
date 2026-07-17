@@ -19,6 +19,8 @@ const (
 	sessionDuration  = 7 * 24 * time.Hour
 )
 
+var defaultOAuthClient = &http.Client{Timeout: 10 * time.Second}
+
 type User struct {
 	Email, Name, AvatarURL, Role, CreatedAt, UpdatedAt, LastLogin string
 }
@@ -51,7 +53,7 @@ func (a *App) authenticate(next http.Handler) http.Handler {
 			next.ServeHTTP(w, r)
 			return
 		}
-		public := r.URL.Path == "/" || r.URL.Path == "/auth/google" || r.URL.Path == "/auth/google/callback"
+		public := r.URL.Path == "/" || r.URL.Path == "/healthz" || r.URL.Path == "/auth/google" || r.URL.Path == "/auth/google/callback"
 		if cookie, err := r.Cookie(sessionCookie); err == nil {
 			if auth, err := a.session(cookie.Value); err == nil {
 				r = r.WithContext(context.WithValue(r.Context(), authKey{}, auth))
@@ -194,7 +196,7 @@ func (a *App) client() *http.Client {
 	if a.httpClient != nil {
 		return a.httpClient
 	}
-	return http.DefaultClient
+	return defaultOAuthClient
 }
 
 func (a *App) logAuthError(message string, err error) {

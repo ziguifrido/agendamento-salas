@@ -37,7 +37,7 @@ func (a *App) rooms(w http.ResponseWriter, r *http.Request) {
 		description := strings.TrimSpace(r.FormValue("description"))
 		location := strings.TrimSpace(r.FormValue("location"))
 		resources := strings.TrimSpace(r.FormValue("resources"))
-		if name == "" || capacity < 1 {
+		if name == "" || err != nil || capacity < 1 {
 			a.redirectRoom(w, r, "", "Preencha nome e capacidade")
 			return
 		}

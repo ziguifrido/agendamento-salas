@@ -16,10 +16,6 @@ func (a *App) dashboard(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
-	if utf8.RuneCountInString(r.URL.Query().Get("q")) > maxTitleBytes {
-		http.Error(w, "pesquisa muito longa", http.StatusBadRequest)
-		return
-	}
 	if currentAuth(r) == nil {
 		f := readFlash(w, r)
 		a.render(w, "login.html", map[string]any{"Error": f.AuthError})
@@ -38,12 +34,41 @@ func (a *App) navigateAgenda(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
+	action := strings.TrimPrefix(r.URL.Path, "/agenda/")
+	if action == "filter" {
+		query := strings.TrimSpace(r.FormValue("q"))
+		if utf8.RuneCountInString(query) > maxTitleBytes {
+			http.Error(w, "pesquisa muito longa", http.StatusBadRequest)
+			return
+		}
+		day := dateISO(r.FormValue("day"))
+		if day == "" {
+			day = agendaDay(r)
+		}
+		if day == "" {
+			day = time.Now().Format("2006-01-02")
+		}
+		view := r.FormValue("view")
+		if view != "week" {
+			view = "day"
+		}
+		roomID, err := strconv.Atoi(r.FormValue("room_id"))
+		if err != nil || roomID < 0 {
+			roomID = 0
+		}
+		setAgendaDay(w, day)
+		setAgendaQuery(w, query)
+		setAgendaView(w, view)
+		setAgendaRoom(w, roomID)
+		http.Redirect(w, r, "/", http.StatusSeeOther)
+		return
+	}
 	day := agendaDay(r)
 	if day == "" {
 		day = time.Now().Format("2006-01-02")
 	}
 	d, _ := time.Parse("2006-01-02", day)
-	switch strings.TrimPrefix(r.URL.Path, "/agenda/") {
+	switch action {
 	case "previous":
 		d = d.AddDate(0, 0, -1)
 	case "next":
@@ -64,19 +89,11 @@ func (a *App) navigateAgenda(w http.ResponseWriter, r *http.Request) {
 
 func (a *App) data(w http.ResponseWriter, r *http.Request) (map[string]any, error) {
 	auth := currentAuth(r)
-	day := dateISO(r.URL.Query().Get("day"))
-	if day != "" {
-		setAgendaDay(w, day)
-	} else {
-		day = agendaDay(r)
-	}
+	day := agendaDay(r)
 	if day == "" {
 		day = time.Now().Format("2006-01-02")
 	}
 	f := readFlash(w, r)
-	if f.Form.Day != "" {
-		day = f.Form.Day
-	}
 	setAgendaDay(w, day)
 	if f.Form.Day == "" {
 		f.Form.Day = day
@@ -84,22 +101,12 @@ func (a *App) data(w http.ResponseWriter, r *http.Request) (map[string]any, erro
 	if f.Form.Owner == "" {
 		f.Form.Owner = auth.User.Name
 	}
-	query := strings.TrimSpace(r.URL.Query().Get("q"))
-	view := r.URL.Query().Get("view")
-	if view == "day" || view == "week" {
-		setAgendaView(w, view)
-	} else {
-		view = agendaView(r)
-	}
+	query := agendaQuery(r)
+	view := agendaView(r)
 	if view == "" {
 		view = "day"
 	}
-	roomID, _ := strconv.Atoi(r.URL.Query().Get("room_id"))
-	if r.URL.Query().Has("room_id") {
-		setAgendaRoom(w, roomID)
-	} else {
-		roomID = agendaRoom(r)
-	}
+	roomID := agendaRoom(r)
 	rooms, err := a.roomList()
 	if err != nil {
 		return nil, err
@@ -248,6 +255,23 @@ func agendaRoom(r *http.Request) int {
 	}
 	n, _ := strconv.Atoi(c.Value)
 	return n
+}
+
+func setAgendaQuery(w http.ResponseWriter, query string) {
+	value := base64.RawURLEncoding.EncodeToString([]byte(query))
+	http.SetCookie(w, &http.Cookie{Name: "agenda_query", Value: value, Path: "/", HttpOnly: true, SameSite: http.SameSiteLaxMode})
+}
+
+func agendaQuery(r *http.Request) string {
+	c, err := r.Cookie("agenda_query")
+	if err != nil {
+		return ""
+	}
+	value, err := base64.RawURLEncoding.DecodeString(c.Value)
+	if err != nil {
+		return ""
+	}
+	return string(value)
 }
 
 func (a *App) render(w http.ResponseWriter, name string, data any) {
