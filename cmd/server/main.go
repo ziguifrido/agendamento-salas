@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"database/sql"
 	"encoding/base64"
 	"encoding/json"
@@ -42,6 +43,15 @@ type flash struct {
 	Form                                  Booking
 }
 
+const (
+	maxFormBytes   = 64 << 10
+	maxFlashBytes  = 2800
+	maxNameBytes   = 100
+	maxTitleBytes  = 150
+	maxDetailBytes = 200
+	maxTextBytes   = 1000
+)
+
 func main() {
 	path := os.Getenv("DATABASE_PATH")
 	if path == "" {
@@ -50,7 +60,7 @@ func main() {
 	if err := os.MkdirAll(filepath.Dir(path), 0750); err != nil {
 		panic(err)
 	}
-	db, err := sql.Open("sqlite", path)
+	db, err := sql.Open("sqlite", sqliteDSN(path))
 	if err != nil {
 		panic(err)
 	}
@@ -74,9 +84,21 @@ func main() {
 		addr = ":8080"
 	}
 	a.log.Info("server started", "address", addr)
-	if err := http.ListenAndServe(addr, security(mux)); err != nil {
+	server := &http.Server{Addr: addr, Handler: security(mux), ReadHeaderTimeout: 5 * time.Second}
+	if err := server.ListenAndServe(); err != nil {
 		a.log.Error("server stopped", "error", err)
 	}
+}
+
+func sqliteDSN(path string) string {
+	separator := "?"
+	if strings.Contains(path, "?") {
+		separator = "&"
+	}
+	if !strings.HasPrefix(path, "file:") {
+		path = "file:" + path
+	}
+	return path + separator + "_pragma=foreign_keys(1)"
 }
 
 func migrate(db *sql.DB) error {
@@ -96,11 +118,27 @@ func security(next http.Handler) http.Handler {
 			http.Error(w, "origem inválida", 403)
 			return
 		}
+		if r.Method == http.MethodPost {
+			r.Body = http.MaxBytesReader(w, r.Body, maxFormBytes)
+			if err := r.ParseForm(); err != nil {
+				http.Error(w, "formulário inválido ou muito grande", http.StatusRequestEntityTooLarge)
+				return
+			}
+		}
 		next.ServeHTTP(w, r)
 	})
 }
 func (a *App) dashboard(w http.ResponseWriter, r *http.Request) {
-	a.render(w, "dashboard.html", a.data(w, r))
+	if len(r.URL.Query().Get("q")) > maxTitleBytes {
+		http.Error(w, "pesquisa muito longa", http.StatusBadRequest)
+		return
+	}
+	data, err := a.data(w, r)
+	if err != nil {
+		a.serverError(w, "load dashboard", err)
+		return
+	}
+	a.render(w, "dashboard.html", data)
 }
 func (a *App) navigateAgenda(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
@@ -130,7 +168,7 @@ func (a *App) navigateAgenda(w http.ResponseWriter, r *http.Request) {
 	setAgendaDay(w, d.Format("2006-01-02"))
 	http.Redirect(w, r, "/", http.StatusSeeOther)
 }
-func (a *App) data(w http.ResponseWriter, r *http.Request) map[string]any {
+func (a *App) data(w http.ResponseWriter, r *http.Request) (map[string]any, error) {
 	day := dateISO(r.URL.Query().Get("day"))
 	if day != "" {
 		setAgendaDay(w, day)
@@ -164,49 +202,57 @@ func (a *App) data(w http.ResponseWriter, r *http.Request) map[string]any {
 	} else {
 		roomID = agendaRoom(r)
 	}
-	data := map[string]any{"Day": day, "View": view, "RoomID": roomID, "Form": f.Form, "Query": query, "Rooms": a.roomList(), "Bookings": a.bookingList(day, roomID, query), "Message": f.Message, "Error": f.Error, "RoomError": f.RoomError, "RoomDialog": f.RoomDialog}
-	if view == "week" {
-		data["Week"] = a.weekAgenda(day, roomID, query)
+	rooms, err := a.roomList()
+	if err != nil {
+		return nil, err
 	}
-	return data
+	data := map[string]any{"Day": day, "View": view, "RoomID": roomID, "Form": f.Form, "Query": query, "Rooms": rooms, "Message": f.Message, "Error": f.Error, "RoomError": f.RoomError, "RoomDialog": f.RoomDialog}
+	if view == "week" {
+		data["Week"], err = a.weekAgenda(day, roomID, query)
+	} else {
+		data["Bookings"], err = a.bookingList(day, roomID, query)
+	}
+	return data, err
 }
-func (a *App) roomList() []Room {
+func (a *App) roomList() ([]Room, error) {
 	rows, err := a.db.Query("SELECT id,name,description,capacity,location,resources FROM rooms ORDER BY name")
 	if err != nil {
-		return nil
+		return nil, err
 	}
 	defer rows.Close()
 	var out []Room
 	for rows.Next() {
 		var v Room
-		if rows.Scan(&v.ID, &v.Name, &v.Description, &v.Capacity, &v.Location, &v.Resources) == nil {
-			out = append(out, v)
+		if err := rows.Scan(&v.ID, &v.Name, &v.Description, &v.Capacity, &v.Location, &v.Resources); err != nil {
+			return nil, err
 		}
+		out = append(out, v)
 	}
 	if rows.Err() != nil {
-		return nil
+		return nil, rows.Err()
 	}
-	return out
+	return out, nil
 }
-func (a *App) bookingList(day string, roomID int, q string) []Booking {
+func (a *App) bookingList(day string, roomID int, q string) ([]Booking, error) {
 	rows, err := a.db.Query(`SELECT b.id,b.room_id,r.name,b.owner,b.title,b.description,b.day,b.starts,b.ends FROM bookings b JOIN rooms r ON r.id=b.room_id WHERE b.day=? AND (?=0 OR b.room_id=?) AND (?='' OR r.name LIKE ? OR b.owner LIKE ? OR b.title LIKE ?) ORDER BY b.starts`, day, roomID, roomID, q, "%"+q+"%", "%"+q+"%", "%"+q+"%")
 	if err != nil {
-		return nil
+		return nil, err
 	}
 	defer rows.Close()
 	var out []Booking
 	for rows.Next() {
 		var v Booking
-		if rows.Scan(&v.ID, &v.RoomID, &v.Room, &v.Owner, &v.Title, &v.Description, &v.Day, &v.Starts, &v.Ends) == nil {
-			out = append(out, v)
+		if err := rows.Scan(&v.ID, &v.RoomID, &v.Room, &v.Owner, &v.Title, &v.Description, &v.Day, &v.Starts, &v.Ends); err != nil {
+			return nil, err
 		}
+		out = append(out, v)
 	}
 	if rows.Err() != nil {
-		return nil
+		return nil, rows.Err()
 	}
-	return out
+	return out, nil
 }
-func (a *App) weekAgenda(day string, roomID int, q string) []AgendaDay {
+func (a *App) weekAgenda(day string, roomID int, q string) ([]AgendaDay, error) {
 	start := weekStart(day)
 	out := make([]AgendaDay, 5)
 	for i := range out {
@@ -214,34 +260,42 @@ func (a *App) weekAgenda(day string, roomID int, q string) []AgendaDay {
 	}
 	rows, err := a.db.Query(`SELECT b.id,b.room_id,r.name,b.owner,b.title,b.description,b.day,b.starts,b.ends FROM bookings b JOIN rooms r ON r.id=b.room_id WHERE b.day>=? AND b.day<? AND (?=0 OR b.room_id=?) AND (?='' OR r.name LIKE ? OR b.owner LIKE ? OR b.title LIKE ?) ORDER BY b.day,b.starts`, out[0].Day, start.AddDate(0, 0, 5).Format("2006-01-02"), roomID, roomID, q, "%"+q+"%", "%"+q+"%", "%"+q+"%")
 	if err != nil {
-		return out
+		return nil, err
 	}
 	defer rows.Close()
 	for rows.Next() {
 		var b Booking
-		if rows.Scan(&b.ID, &b.RoomID, &b.Room, &b.Owner, &b.Title, &b.Description, &b.Day, &b.Starts, &b.Ends) == nil {
-			for i := range out {
-				if out[i].Day == b.Day {
-					out[i].Bookings = append(out[i].Bookings, b)
-					break
-				}
+		if err := rows.Scan(&b.ID, &b.RoomID, &b.Room, &b.Owner, &b.Title, &b.Description, &b.Day, &b.Starts, &b.Ends); err != nil {
+			return nil, err
+		}
+		for i := range out {
+			if out[i].Day == b.Day {
+				out[i].Bookings = append(out[i].Bookings, b)
+				break
 			}
 		}
 	}
 	if rows.Err() != nil {
-		return out
+		return nil, rows.Err()
 	}
-	return out
+	return out, nil
 }
 func (a *App) rooms(w http.ResponseWriter, r *http.Request) {
 	if r.Method == http.MethodPost {
 		name := strings.TrimSpace(r.FormValue("name"))
-		cap := r.FormValue("capacity")
-		if name == "" || cap == "" {
+		capacity, err := strconv.Atoi(r.FormValue("capacity"))
+		description := strings.TrimSpace(r.FormValue("description"))
+		location := strings.TrimSpace(r.FormValue("location"))
+		resources := strings.TrimSpace(r.FormValue("resources"))
+		if name == "" || capacity < 1 {
 			a.redirectRoom(w, r, "", "Preencha nome e capacidade")
 			return
 		}
-		_, err := a.db.Exec("INSERT INTO rooms(name,description,capacity,location,resources) VALUES(?,?,?,?,?)", name, strings.TrimSpace(r.FormValue("description")), cap, strings.TrimSpace(r.FormValue("location")), strings.TrimSpace(r.FormValue("resources")))
+		if !validFields(field{name, maxNameBytes}, field{description, maxTextBytes}, field{location, maxDetailBytes}, field{resources, maxDetailBytes}) {
+			a.redirectRoom(w, r, "", "Um ou mais campos excedem o tamanho permitido")
+			return
+		}
+		_, err = a.db.Exec("INSERT INTO rooms(name,description,capacity,location,resources) VALUES(?,?,?,?,?)", name, description, capacity, location, resources)
 		if err != nil {
 			a.redirectRoom(w, r, "", "Sala já existe ou capacidade inválida")
 			return
@@ -269,22 +323,40 @@ func (a *App) roomAction(w http.ResponseWriter, r *http.Request) {
 	}
 	switch parts[1] {
 	case "edit":
-		name, capacity := strings.TrimSpace(r.FormValue("name")), r.FormValue("capacity")
-		if name == "" || capacity == "" {
+		name := strings.TrimSpace(r.FormValue("name"))
+		capacity, capacityErr := strconv.Atoi(r.FormValue("capacity"))
+		description := strings.TrimSpace(r.FormValue("description"))
+		location := strings.TrimSpace(r.FormValue("location"))
+		resources := strings.TrimSpace(r.FormValue("resources"))
+		if name == "" || capacityErr != nil || capacity < 1 {
 			a.redirectManage(w, r, "", "Preencha nome e capacidade")
 			return
 		}
-		_, err = a.db.Exec("UPDATE rooms SET name=?,description=?,capacity=?,location=?,resources=? WHERE id=?", name, strings.TrimSpace(r.FormValue("description")), capacity, strings.TrimSpace(r.FormValue("location")), strings.TrimSpace(r.FormValue("resources")), id)
+		if !validFields(field{name, maxNameBytes}, field{description, maxTextBytes}, field{location, maxDetailBytes}, field{resources, maxDetailBytes}) {
+			a.redirectManage(w, r, "", "Um ou mais campos excedem o tamanho permitido")
+			return
+		}
+		var result sql.Result
+		result, err = a.db.Exec("UPDATE rooms SET name=?,description=?,capacity=?,location=?,resources=? WHERE id=?", name, description, capacity, location, resources, id)
 		if err != nil {
 			a.redirectManage(w, r, "", "Sala já existe ou capacidade inválida")
+			return
+		}
+		if changed, _ := result.RowsAffected(); changed == 0 {
+			a.redirectManage(w, r, "", "Sala não encontrada")
 			return
 		}
 		a.notify()
 		a.redirectManage(w, r, "Sala atualizada", "")
 	case "delete":
-		_, err = a.db.ExecContext(r.Context(), "DELETE FROM rooms WHERE id=?", id)
+		var result sql.Result
+		result, err = a.db.ExecContext(r.Context(), "DELETE FROM rooms WHERE id=?", id)
 		if err != nil {
 			a.redirectManage(w, r, "", "Não é possível excluir uma sala com agendamentos")
+			return
+		}
+		if changed, _ := result.RowsAffected(); changed == 0 {
+			a.redirectManage(w, r, "", "Sala não encontrada")
 			return
 		}
 		a.notify()
@@ -303,20 +375,26 @@ func (a *App) bookings(w http.ResponseWriter, r *http.Request) {
 		a.redirect(w, r, "", "Data ou horário inválido")
 		return
 	}
-	room, owner, title := r.FormValue("room_id"), strings.TrimSpace(r.FormValue("owner")), strings.TrimSpace(r.FormValue("title"))
-	if room == "" || owner == "" || title == "" {
+	room, roomErr := strconv.Atoi(r.FormValue("room_id"))
+	owner, title := strings.TrimSpace(r.FormValue("owner")), strings.TrimSpace(r.FormValue("title"))
+	description := strings.TrimSpace(r.FormValue("description"))
+	if roomErr != nil || room < 1 || owner == "" || title == "" {
 		a.redirect(w, r, "", "Preencha os campos obrigatórios")
 		return
 	}
-	var conflicts int
-	err := a.db.QueryRow("SELECT COUNT(*) FROM bookings WHERE room_id=? AND day=? AND starts < ? AND ends > ?", room, day, ends, starts).Scan(&conflicts)
-	if err != nil || conflicts > 0 {
-		a.redirect(w, r, "", "Esta sala já está reservada nesse horário")
+	if !validFields(field{owner, maxNameBytes}, field{title, maxTitleBytes}, field{description, maxTextBytes}) {
+		a.redirect(w, r, "", "Um ou mais campos excedem o tamanho permitido")
 		return
 	}
-	_, err = a.db.Exec("INSERT INTO bookings(room_id,owner,title,description,day,starts,ends) VALUES(?,?,?,?,?,?,?)", room, owner, title, strings.TrimSpace(r.FormValue("description")), day, starts, ends)
+	result, err := a.db.Exec(`INSERT INTO bookings(room_id,owner,title,description,day,starts,ends)
+SELECT ?,?,?,?,?,?,?
+WHERE NOT EXISTS (SELECT 1 FROM bookings WHERE room_id=? AND day=? AND starts < ? AND ends > ?)`, room, owner, title, description, day, starts, ends, room, day, ends, starts)
 	if err != nil {
 		a.redirect(w, r, "", "Não foi possível criar a reserva")
+		return
+	}
+	if inserted, _ := result.RowsAffected(); inserted == 0 {
+		a.redirect(w, r, "", "Esta sala já está reservada nesse horário")
 		return
 	}
 	a.notify()
@@ -327,15 +405,20 @@ func (a *App) bookingAction(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
-	id := strings.TrimPrefix(r.URL.Path, "/bookings/")
-	if !strings.HasSuffix(id, "/cancel") {
+	path := strings.TrimPrefix(r.URL.Path, "/bookings/")
+	idText, ok := strings.CutSuffix(path, "/cancel")
+	id, err := strconv.Atoi(idText)
+	if !ok || id < 1 || err != nil {
 		http.NotFound(w, r)
 		return
 	}
-	id = strings.TrimSuffix(id, "/cancel")
-	_, err := a.db.Exec("DELETE FROM bookings WHERE id=?", id)
+	result, err := a.db.Exec("DELETE FROM bookings WHERE id=?", id)
 	if err != nil {
 		a.redirect(w, r, "", "Não foi possível cancelar")
+		return
+	}
+	if changed, _ := result.RowsAffected(); changed == 0 {
+		a.redirect(w, r, "", "Reserva não encontrada")
 		return
 	}
 	a.notify()
@@ -399,9 +482,31 @@ func (a *App) notify() {
 	}
 	a.mu.Unlock()
 }
+
+type field struct {
+	value string
+	max   int
+}
+
+func validFields(fields ...field) bool {
+	for _, field := range fields {
+		if len(field.value) > field.max {
+			return false
+		}
+	}
+	return true
+}
+
 func validBooking(day, starts, ends string) bool {
-	d, e := time.Parse("2006-01-02", day)
-	return e == nil && !d.Before(time.Now().Truncate(24*time.Hour)) && len(starts) == 5 && len(ends) == 5 && starts < ends
+	d, err := time.ParseInLocation("2006-01-02", day, time.Local)
+	if err != nil {
+		return false
+	}
+	now := time.Now()
+	today := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.Local)
+	start, startErr := time.Parse("15:04", starts)
+	end, endErr := time.Parse("15:04", ends)
+	return !d.Before(today) && startErr == nil && endErr == nil && start.Before(end)
 }
 func dateISO(day string) string {
 	for _, layout := range []string{"02/01/2006", "2006-01-02"} {
@@ -461,6 +566,10 @@ func (a *App) redirectManage(w http.ResponseWriter, r *http.Request, msg, proble
 }
 func setFlash(w http.ResponseWriter, f flash) {
 	data, _ := json.Marshal(f)
+	if len(data) > maxFlashBytes {
+		f.Form = Booking{}
+		data, _ = json.Marshal(f)
+	}
 	http.SetCookie(w, &http.Cookie{Name: "flash", Value: base64.RawURLEncoding.EncodeToString(data), Path: "/", HttpOnly: true, SameSite: http.SameSiteLaxMode})
 }
 func readFlash(w http.ResponseWriter, r *http.Request) (f flash) {
@@ -507,9 +616,18 @@ func agendaRoom(r *http.Request) int {
 	return n
 }
 func (a *App) render(w http.ResponseWriter, name string, data any) {
-	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	if err := a.templates.ExecuteTemplate(w, name, data); err != nil {
-		a.log.Error("render", "error", err)
-		http.Error(w, "erro interno", 500)
+	var page bytes.Buffer
+	if err := a.templates.ExecuteTemplate(&page, name, data); err != nil {
+		a.serverError(w, "render", err)
+		return
 	}
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	page.WriteTo(w)
+}
+
+func (a *App) serverError(w http.ResponseWriter, message string, err error) {
+	if a.log != nil {
+		a.log.Error(message, "error", err)
+	}
+	http.Error(w, "erro interno", http.StatusInternalServerError)
 }
