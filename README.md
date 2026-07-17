@@ -5,7 +5,7 @@
 [![Último commit](https://img.shields.io/github/last-commit/ziguifrido/agendamento-salas?label=%C3%BAltimo%20commit&color=6C8EBF)](https://github.com/ziguifrido/agendamento-salas/commits/main)
 [![Atividade de commits](https://img.shields.io/github/commit-activity/m/ziguifrido/agendamento-salas?label=atividade&color=6C8EBF)](https://github.com/ziguifrido/agendamento-salas/commits/main)
 [![Tamanho do repositório](https://img.shields.io/github/repo-size/ziguifrido/agendamento-salas?label=tamanho&color=6C8EBF)](https://github.com/ziguifrido/agendamento-salas)
-[![Versão](https://img.shields.io/badge/vers%C3%A3o-v0.2.2-6C8EBF)](VERSION)
+[![Versão](https://img.shields.io/badge/vers%C3%A3o-v0.3.0-6C8EBF)](VERSION)
 [![Go](https://img.shields.io/badge/Go-1.24%2B-00ADD8?logo=go&logoColor=white)](https://go.dev/)
 [![SQLite](https://img.shields.io/badge/SQLite-embutido-003B57?logo=sqlite&logoColor=white)](https://www.sqlite.org/)
 [![PWA](https://img.shields.io/badge/PWA-instal%C3%A1vel-5A0FC8?logo=pwa&logoColor=white)](https://web.dev/learn/pwa/)
@@ -23,7 +23,10 @@ O **Reserva de Salas de Reunião** foi pensado para equipes que precisam de uma 
 - Busca por sala, responsável ou título da reserva.
 - Filtro de sala, troca de visualização e navegação atualizados imediatamente.
 - Cadastro e gestão de salas em dialogs: visualizar, editar e excluir.
-- Criação, detalhamento e cancelamento de reservas em andamento ou futuros.
+- Login exclusivo pelo Google, com restrição opcional de domínio e papéis de administrador e usuário.
+- Solicitação de reservas por usuários e aprovação ou rejeição por administradores.
+- Usuários podem cancelar apenas as próprias solicitações enquanto pendentes.
+- Administradores podem criar, editar e cancelar reservas não encerradas.
 - Agendamentos encerrados escurecidos e agendamentos em andamento destacados.
 - Bloqueio de horários sobrepostos para a mesma sala.
 - Notificações empilhadas, descartáveis e temporárias.
@@ -39,6 +42,16 @@ O **Reserva de Salas de Reunião** foi pensado para equipes que precisam de uma 
 
 ### Executar localmente
 
+Crie um cliente OAuth 2.0 do tipo **Aplicativo da Web** no Google Cloud e cadastre `http://localhost:8080/auth/google/callback` como URI de redirecionamento autorizada. Copie o modelo de configuração:
+
+```bash
+cp .env.template .env
+```
+
+Edite o `.env` e preencha `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_REDIRECT_URL` e ao menos um e-mail em `INITIAL_ADMIN_USERS`. A aplicação carrega esse arquivo automaticamente; variáveis já exportadas no ambiente têm precedência. O `.env` contém segredos e está ignorado pelo Git e pelo contexto de build do Docker.
+
+No primeiro acesso, entre com um dos e-mails de `INITIAL_ADMIN_USERS`; ele será criado e promovido automaticamente a administrador. Depois disso, os demais papéis podem ser gerenciados pela interface. Use `ALLOWED_EMAIL_DOMAIN="empresa.com.br"` para restringir o login ao domínio da organização.
+
 ```bash
 go run ./cmd/server
 ```
@@ -46,6 +59,8 @@ go run ./cmd/server
 Abra [http://localhost:8080](http://localhost:8080). Na primeira execução, o banco será criado automaticamente em `data/reservas.db`.
 
 ### Executar com Docker
+
+O Docker Compose usa o mesmo arquivo `.env`. Depois de configurá-lo, execute:
 
 ```bash
 docker compose up --build
@@ -61,14 +76,14 @@ docker compose down
 
 ## Como usar
 
-1. Use o botão com seta para recolher ou ampliar o painel lateral conforme necessário.
-2. Abra a engrenagem no rodapé do painel lateral e selecione **Gerenciar salas**.
-3. Nesse dialog, cadastre, visualize, edite ou exclua salas. Salas com agendamentos não podem ser excluídas.
-4. Na agenda, selecione **Nova reserva**.
-5. Escolha a sala, responsável, título, data e intervalo de horário.
-6. Confirme a reserva. Se já houver ocupação no período, a aplicação informa o conflito e preserva o formulário para correção.
+1. Entre com uma conta Google autorizada.
+2. Usuários selecionam **Solicitar reserva**; o pedido fica pendente e não bloqueia definitivamente o horário.
+3. Administradores usam **Solicitações pendentes** para aprovar ou rejeitar. Apenas reservas aprovadas ocupam o horário.
+4. Em **Salas**, todos podem consultar os detalhes; administradores também podem cadastrar, editar e excluir.
+5. Administradores usam **Gerenciar usuários** para pesquisar, filtrar e alterar papéis.
+6. Use o botão com seta para recolher ou ampliar o painel lateral conforme necessário.
 
-Use a busca para localizar reservas e alterne entre as visões diária e semanal conforme necessário. Clique em uma reserva para ver seus detalhes; o botão **Cancelar** remove reservas não encerradas após confirmação. Pelo menu de configurações, escolha o tema claro, escuro ou automático e habilite o modo apresentação ou a atualização automática. Ambos verificam a virada do dia a cada 60 segundos e selecionam a data local atual do navegador quando necessário.
+Use a busca para localizar reservas e alterne entre as visões diária e semanal conforme necessário. Clique em uma reserva para ver seus detalhes. Usuários podem cancelar somente suas próprias solicitações pendentes; administradores podem editar e cancelar reservas não encerradas. Pelo menu de configurações, escolha o tema claro, escuro ou automático e habilite o modo apresentação ou a atualização automática. Ambos verificam a virada do dia a cada 60 segundos e selecionam a data local atual do navegador quando necessário.
 
 ## Configuração
 
@@ -76,24 +91,35 @@ Use a busca para localizar reservas e alterne entre as visões diária e semanal
 | --- | --- | --- |
 | `ADDR` | `:8080` | Endereço e porta em que o servidor escuta. |
 | `DATABASE_PATH` | `data/reservas.db` | Caminho do arquivo SQLite. |
+| `HOST_PORT` | `8080` | Porta publicada no host pelo Docker Compose. |
+| `SERVER_PORT` | `8080` | Porta interna usada pelo servidor no Docker Compose. |
+| `GOOGLE_CLIENT_ID` | — | Client ID OAuth 2.0 do Google. Obrigatório. |
+| `GOOGLE_CLIENT_SECRET` | — | Client secret OAuth 2.0 do Google. Obrigatório. |
+| `GOOGLE_REDIRECT_URL` | — | Callback cadastrado no Google, como `https://salas.exemplo.com/auth/google/callback`. Obrigatório. |
+| `ALLOWED_EMAIL_DOMAIN` | vazio | Quando definido, permite somente e-mails desse domínio. |
+| `INITIAL_ADMIN_USERS` | vazio | E-mails separados por vírgula promovidos a administrador durante o login; configure ao menos um para o bootstrap inicial. |
 
-Exemplo com banco e porta personalizados:
+Exemplo de valores no `.env`:
 
-```bash
-ADDR=:3000 DATABASE_PATH=/var/lib/salas/reservas.db go run ./cmd/server
+```dotenv
+GOOGLE_CLIENT_ID=seu-client-id
+GOOGLE_CLIENT_SECRET=seu-client-secret
+GOOGLE_REDIRECT_URL=http://localhost:8080/auth/google/callback
+ALLOWED_EMAIL_DOMAIN=empresa.com.br
+INITIAL_ADMIN_USERS=admin@empresa.com.br
 ```
 
 ## Dados, regras e segurança
 
-- As tabelas e índices são criados automaticamente de forma idempotente na inicialização.
+- As tabelas, colunas e índices são criados automaticamente de forma idempotente na inicialização.
 - Reservas devem ter data válida, não anterior ao dia atual e horário de início menor que o de término.
-- Uma sala não pode ter reservas com horários sobrepostos no mesmo dia.
-- A data, visualização e filtro de sala da agenda são guardados em cookies de sessão.
+- Uma sala não pode ter reservas aprovadas com horários sobrepostos no mesmo dia; solicitações pendentes são exibidas sem bloquear o horário.
+- A data, a busca, a visualização e o filtro de sala da agenda são guardados em cookies de sessão.
 - Mensagens e dados de formulário após erro usam um cookie temporário, consumido no próximo carregamento; por isso não são incluídos na URL. A pilha visual de notificações é mantida no `sessionStorage` até o descarte individual.
 - As preferências de tema, apresentação, atualização automática e painel lateral são mantidas no `sessionStorage`. O estado temporal dos agendamentos usa o relógio local do navegador.
+- Sessões usam tokens aleatórios armazenados apenas como hash no banco e cookies `HttpOnly`, `SameSite=Lax` e `Secure` sob HTTPS.
+- Todas as mutações autenticadas exigem token CSRF e permissões são verificadas novamente no backend.
 - As respostas incluem cabeçalhos de proteção para conteúdo, frame e origem de referência. Requisições `POST` com origem externa são recusadas.
-
-> **Nota:** ainda não há autenticação ou autorização. Use a aplicação apenas em um ambiente confiável até que exista uma fonte de identidade definida.
 
 ## Backup do banco
 

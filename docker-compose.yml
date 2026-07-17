@@ -1,8 +1,16 @@
 services:
   salas:
     build: .
-    ports: ["8080:8080"]
-    volumes: ["salas-data:/data"]
+    ports: ["${HOST_PORT:-8080}:${SERVER_PORT:-8080}"]
+    volumes: ["salas-data:/app/data"]
+    environment:
+      ADDR: 0.0.0.0:${SERVER_PORT:-8080}
+      DATABASE_PATH: ${DATABASE_PATH:-data/reservas.db}
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET}
+      GOOGLE_REDIRECT_URL: ${GOOGLE_REDIRECT_URL}
+      ALLOWED_EMAIL_DOMAIN: ${ALLOWED_EMAIL_DOMAIN:-}
+      INITIAL_ADMIN_USERS: ${INITIAL_ADMIN_USERS:-}
     restart: unless-stopped
 volumes:
   salas-data:

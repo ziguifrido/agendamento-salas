@@ -1,5 +1,6 @@
-data/
+.git
 .env
+data
 *.db
 *.db-shm
 *.db-wal

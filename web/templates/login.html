@@ -1,0 +1,23 @@
+{{define "login.html"}}
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <meta name="theme-color" content="#6C8EBF">
+    <link rel="stylesheet" href="/static/css/tokens.css">
+    <link rel="stylesheet" href="/static/css/app.css">
+    <title>Entrar · Salas</title>
+  </head>
+  <body class="login-page">
+    <main class="login-card">
+      <h1>Agenda de salas</h1>
+      <p class="muted">Entre com sua conta Google para continuar.</p>
+      {{if .Error}}
+        <p class="login-error" role="alert">{{.Error}}</p>
+      {{end}}
+      <a class="google-login" href="/auth/google">Entrar com Google</a>
+    </main>
+  </body>
+</html>
+{{end}}
