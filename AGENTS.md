@@ -20,7 +20,11 @@ Todo commit deve partir de uma solicitação explícita do usuário. O projeto s
 
 ## Decisões
 
-As migrações são idempotentes no código; a aplicação não possui autenticação até que exista requisito de identidade e autorização. A data, a visualização e o filtro de sala da agenda usam cookies de sessão. Dados de formulário e a origem de erros usam cookie temporário; a pilha visual de notificações usa `sessionStorage`. Nenhum desses estados deve ser colocado na URL.
+As migrações são idempotentes no código. A autenticação usa exclusivamente o fluxo OAuth 2.0 web-server do Google, implementado com a biblioteca padrão. O e-mail verificado é a chave lógica do usuário; tokens opacos de sessão são armazenados somente como hash no SQLite e enviados por cookie `HttpOnly`, `SameSite=Lax` e `Secure` sob HTTPS. Toda mutação autenticada exige CSRF e toda autorização é refeita no backend.
+
+O RBAC possui apenas os papéis `admin` e `user`. Administradores gerenciam salas, reservas, aprovações e papéis; usuários consultam a agenda, solicitam reservas e cancelam apenas solicitações próprias pendentes. Reservas pendentes não bloqueiam horários; a aprovação deve continuar atômica em relação a conflitos. `ALLOWED_EMAIL_DOMAIN` restringe o domínio no backend e `INITIAL_ADMIN_USERS` promove os e-mails de bootstrap durante o login. Mudanças futuras não devem aceitar papel, identidade ou propriedade enviados pelo cliente como fonte de autorização.
+
+A data, a visualização e o filtro de sala da agenda usam cookies de sessão. Dados de formulário e a origem de erros usam cookie temporário; a pilha visual de notificações usa `sessionStorage`. Nenhum desses estados deve ser colocado na URL.
 
 O cadastro e a gestão de salas são dialogs da agenda. Preserve a proteção contra exclusão de salas com agendamentos e a confirmação antes da exclusão.
 
