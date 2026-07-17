@@ -64,6 +64,24 @@ func TestValidBooking(t *testing.T) {
 	}
 }
 
+func TestValidFieldsCountsUnicodeCharacters(t *testing.T) {
+	if !validFields(field{strings.Repeat("á", maxTitleBytes), maxTitleBytes}) {
+		t.Fatal("valid Unicode field rejected")
+	}
+	if validFields(field{strings.Repeat("á", maxTitleBytes+1), maxTitleBytes}) {
+		t.Fatal("oversized Unicode field accepted")
+	}
+}
+
+func TestDashboardRejectsLongUnicodeQuery(t *testing.T) {
+	query := url.QueryEscape(strings.Repeat("á", maxTitleBytes+1))
+	w := httptest.NewRecorder()
+	(&App{}).dashboard(w, httptest.NewRequest(http.MethodGet, "/?q="+query, nil))
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("got status %d", w.Code)
+	}
+}
+
 func TestSQLiteDSNEnablesForeignKeysOnEveryConnection(t *testing.T) {
 	db, err := sql.Open("sqlite", sqliteDSN(filepath.Join(t.TempDir(), "test.db")))
 	if err != nil {

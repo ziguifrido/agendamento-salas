@@ -15,6 +15,7 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"unicode/utf8"
 
 	_ "modernc.org/sqlite"
 )
@@ -129,7 +130,7 @@ func security(next http.Handler) http.Handler {
 	})
 }
 func (a *App) dashboard(w http.ResponseWriter, r *http.Request) {
-	if len(r.URL.Query().Get("q")) > maxTitleBytes {
+	if utf8.RuneCountInString(r.URL.Query().Get("q")) > maxTitleBytes {
 		http.Error(w, "pesquisa muito longa", http.StatusBadRequest)
 		return
 	}
@@ -490,7 +491,7 @@ type field struct {
 
 func validFields(fields ...field) bool {
 	for _, field := range fields {
-		if len(field.value) > field.max {
+		if utf8.RuneCountInString(field.value) > field.max {
 			return false
 		}
 	}
