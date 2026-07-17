@@ -81,6 +81,14 @@ func TestAllowedEmailDomain(t *testing.T) {
 	if !a.emailAllowed("user@example.com") {
 		t.Fatal("empty domain should allow verified emails")
 	}
+	a.httpClient = &http.Client{Transport: roundTripFunc(func(r *http.Request) (*http.Response, error) {
+		body := `{"email":"user@gmail.com","name":"User","email_verified":false}`
+		return &http.Response{StatusCode: http.StatusOK, Body: io.NopCloser(strings.NewReader(body)), Request: r}, nil
+	})}
+	a.oauthUserInfo = "https://provider.test/userinfo"
+	if _, err := a.googleProfile(t.Context(), "token"); err == nil {
+		t.Fatal("unverified Google email accepted")
+	}
 }
 
 func TestUserListIsSortedByName(t *testing.T) {
@@ -114,7 +122,9 @@ func TestCSRFRejectsInvalidToken(t *testing.T) {
 
 func TestUserCannotDeleteRoom(t *testing.T) {
 	db := testDB(t)
-	db.Exec("INSERT INTO rooms(name,capacity) VALUES('Sala 1',10)")
+	if _, err := db.Exec("INSERT INTO rooms(name,capacity) VALUES('Sala 1',10)"); err != nil {
+		t.Fatal(err)
+	}
 	w := httptest.NewRecorder()
 	(&App{db: db}).roomAction(w, requestAs(httptest.NewRequest(http.MethodPost, "/rooms/1/delete", nil), roleUser))
 	if w.Code != http.StatusForbidden {
@@ -125,7 +135,9 @@ func TestUserCannotDeleteRoom(t *testing.T) {
 func TestLastAdminCannotDemoteSelf(t *testing.T) {
 	db := testDB(t)
 	now := time.Now().UTC().Format(time.RFC3339)
-	db.Exec("INSERT INTO users(email,name,role,created_at,updated_at,last_login) VALUES('admin@example.com','Admin','admin',?,?,?)", now, now, now)
+	if _, err := db.Exec("INSERT INTO users(email,name,role,created_at,updated_at,last_login) VALUES('admin@example.com','Admin','admin',?,?,?)", now, now, now); err != nil {
+		t.Fatal(err)
+	}
 	form := url.Values{"email": {"admin@example.com"}, "role": {roleUser}}
 	r := requestAs(httptest.NewRequest(http.MethodPost, "/users/role", strings.NewReader(form.Encode())), roleAdmin)
 	r.Header.Set("Content-Type", "application/x-www-form-urlencoded")

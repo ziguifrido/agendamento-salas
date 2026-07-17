@@ -6,7 +6,6 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
-	"net/url"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -35,6 +34,21 @@ func TestRoomActionDeletesRoom(t *testing.T) {
 	}
 }
 
+func TestRoomCreationRejectsInvalidCapacity(t *testing.T) {
+	db := testDB(t)
+	r := requestAs(httptest.NewRequest(http.MethodPost, "/rooms", strings.NewReader("name=Sala&capacity=dez")), roleAdmin)
+	r.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	w := httptest.NewRecorder()
+	(&App{db: db}).rooms(w, r)
+	if response := flashFromResponse(t, w); response.RoomError != "Preencha nome e capacidade" {
+		t.Fatalf("invalid capacity accepted: %+v", response)
+	}
+	var count int
+	if err := db.QueryRow("SELECT COUNT(*) FROM rooms").Scan(&count); err != nil || count != 0 {
+		t.Fatalf("unexpected rooms: %d, %v", count, err)
+	}
+}
+
 func TestNotifySignalsSubscribers(t *testing.T) {
 	a := &App{}
 	ch := a.subscribe()
@@ -50,15 +64,6 @@ func TestNotifySignalsSubscribers(t *testing.T) {
 	case <-ch:
 		t.Fatal("unsubscribed channel was notified")
 	default:
-	}
-}
-
-func TestDashboardRejectsLongUnicodeQuery(t *testing.T) {
-	query := url.QueryEscape(strings.Repeat("á", maxTitleBytes+1))
-	w := httptest.NewRecorder()
-	(&App{}).dashboard(w, httptest.NewRequest(http.MethodGet, "/?q="+query, nil))
-	if w.Code != http.StatusBadRequest {
-		t.Fatalf("got status %d", w.Code)
 	}
 }
 
@@ -163,6 +168,44 @@ func TestNavigateAgenda(t *testing.T) {
 	(&App{}).navigateAgenda(w, r)
 	if w.Code != http.StatusSeeOther || !strings.Contains(w.Header().Get("Set-Cookie"), "2026-07-16") {
 		t.Fatalf("unexpected navigation: %d %s", w.Code, w.Header().Get("Set-Cookie"))
+	}
+}
+
+func TestAgendaFilterPersistsCookiesAndRejectsLongQuery(t *testing.T) {
+	form := "day=2026-07-16&view=week&room_id=2&q=planejamento"
+	r := httptest.NewRequest(http.MethodPost, "/agenda/filter", strings.NewReader(form))
+	r.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	w := httptest.NewRecorder()
+	(&App{}).navigateAgenda(w, r)
+	if w.Code != http.StatusSeeOther {
+		t.Fatalf("got status %d", w.Code)
+	}
+	cookies := w.Result().Cookies()
+	request := httptest.NewRequest(http.MethodGet, "/?day=2999-01-01&view=day&room_id=99&q=url", nil)
+	for _, cookie := range cookies {
+		request.AddCookie(cookie)
+	}
+	if agendaDay(request) != "2026-07-16" || agendaView(request) != "week" || agendaRoom(request) != 2 || agendaQuery(request) != "planejamento" {
+		t.Fatal("agenda filter was not persisted in session cookies")
+	}
+
+	longQuery := strings.Repeat("á", maxTitleBytes+1)
+	r = httptest.NewRequest(http.MethodPost, "/agenda/filter", strings.NewReader("q="+longQuery))
+	r.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	w = httptest.NewRecorder()
+	(&App{}).navigateAgenda(w, r)
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("long query got status %d", w.Code)
+	}
+}
+
+func TestHealth(t *testing.T) {
+	for _, method := range []string{http.MethodGet, http.MethodHead} {
+		w := httptest.NewRecorder()
+		health(w, httptest.NewRequest(method, "/healthz", nil))
+		if w.Code != http.StatusNoContent {
+			t.Fatalf("%s got status %d", method, w.Code)
+		}
 	}
 }
 

@@ -188,6 +188,35 @@ INSERT INTO bookings(room_id,owner,title,day,starts,ends,requester_email,status)
 	}
 }
 
+func TestUserCanOnlyCancelOwnPendingBooking(t *testing.T) {
+	db := testDB(t)
+	if _, err := db.Exec(`INSERT INTO rooms(name,capacity) VALUES('Sala 1',10);
+INSERT INTO bookings(room_id,owner,title,day,starts,ends,requester_email,status) VALUES
+(1,'User','Own pending','2999-01-01','09:00','10:00','user@example.com','pending'),
+(1,'Other','Other pending','2999-01-01','10:00','11:00','other@example.com','pending'),
+(1,'User','Own approved','2999-01-01','11:00','12:00','user@example.com','approved')`); err != nil {
+		t.Fatal(err)
+	}
+	a := &App{db: db}
+	cancel := func(id int) flash {
+		w := httptest.NewRecorder()
+		a.bookingAction(w, requestAs(httptest.NewRequest(http.MethodPost, fmt.Sprintf("/bookings/%d/cancel", id), nil), roleUser))
+		return flashFromResponse(t, w)
+	}
+	if response := cancel(1); response.Message != "Reserva cancelada." {
+		t.Fatalf("own pending booking was not cancelled: %+v", response)
+	}
+	for _, id := range []int{2, 3} {
+		if response := cancel(id); response.ActionError == "" {
+			t.Fatalf("booking %d was cancelled without permission", id)
+		}
+	}
+	var count int
+	if err := db.QueryRow("SELECT COUNT(*) FROM bookings").Scan(&count); err != nil || count != 2 {
+		t.Fatalf("unexpected remaining bookings: %d, %v", count, err)
+	}
+}
+
 func TestRedirectKeepsBookingFieldsAfterError(t *testing.T) {
 	form := url.Values{"room_id": {"2"}, "owner": {"Ana"}, "title": {"Planejamento"}, "description": {"Q3"}, "day": {"2999-01-01"}, "starts": {"10:00"}, "ends": {"09:00"}}
 	r := httptest.NewRequest("POST", "/bookings", strings.NewReader(form.Encode()))
