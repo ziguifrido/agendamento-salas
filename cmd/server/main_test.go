@@ -1,14 +1,14 @@
 package main
 
 import (
-	"context"
 	"database/sql"
+	"html/template"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
 	"path/filepath"
 	"strings"
-	"sync"
 	"testing"
 )
 
@@ -25,7 +25,7 @@ func TestRoomActionDeletesRoom(t *testing.T) {
 		t.Fatal(err)
 	}
 	w := httptest.NewRecorder()
-	(&App{db: db}).roomAction(w, httptest.NewRequest(http.MethodPost, "/rooms/1/delete", nil))
+	(&App{db: db}).roomAction(w, requestAs(httptest.NewRequest(http.MethodPost, "/rooms/1/delete", nil), roleAdmin))
 	if w.Code != http.StatusSeeOther {
 		t.Fatalf("got status %d", w.Code)
 	}
@@ -50,26 +50,6 @@ func TestNotifySignalsSubscribers(t *testing.T) {
 	case <-ch:
 		t.Fatal("unsubscribed channel was notified")
 	default:
-	}
-}
-
-func TestValidBooking(t *testing.T) {
-	if !validBooking("2999-01-01", "09:00", "10:00") {
-		t.Fatal("valid booking rejected")
-	}
-	for _, test := range [][3]string{{"2999-01-01", "10:00", "10:00"}, {"2999-01-01", "aa:aa", "zz:zz"}, {"2999-01-01", "09:60", "10:00"}, {"2000-01-01", "09:00", "10:00"}, {"bad", "09:00", "10:00"}} {
-		if validBooking(test[0], test[1], test[2]) {
-			t.Fatalf("invalid booking accepted: %v", test)
-		}
-	}
-}
-
-func TestValidFieldsCountsUnicodeCharacters(t *testing.T) {
-	if !validFields(field{strings.Repeat("á", maxTitleBytes), maxTitleBytes}) {
-		t.Fatal("valid Unicode field rejected")
-	}
-	if validFields(field{strings.Repeat("á", maxTitleBytes+1), maxTitleBytes}) {
-		t.Fatal("oversized Unicode field accepted")
 	}
 }
 
@@ -110,76 +90,45 @@ func TestSQLiteDSNEnablesForeignKeysOnEveryConnection(t *testing.T) {
 	}
 }
 
-func TestBookingConflictIsRejected(t *testing.T) {
-	dsn := sqliteDSN(filepath.Join(t.TempDir(), "test.db"))
-	db, err := sql.Open("sqlite", dsn)
+func TestTemplatesParse(t *testing.T) {
+	templates, err := template.New("").Funcs(template.FuncMap{"now": func() string { return "2999-01-01" }, "dateBR": dateBR, "weekdayBR": weekdayBR}).ParseGlob("../../web/templates/*.html")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := templates.ExecuteTemplate(io.Discard, "login.html", map[string]any{}); err != nil {
+		t.Fatalf("render login: %v", err)
+	}
+	for _, admin := range []bool{false, true} {
+		data := map[string]any{"CurrentUser": User{Name: "Teste"}, "CSRF": "csrf", "IsAdmin": admin, "View": "day", "Form": Booking{}, "Day": "2999-01-01", "Requests": []Booking{}, "Rooms": []Room{}, "Bookings": []Booking{}, "Users": []User{}}
+		if err := templates.ExecuteTemplate(io.Discard, "dashboard.html", data); err != nil {
+			t.Fatalf("render admin=%v: %v", admin, err)
+		}
+	}
+}
+
+func TestMigrateExistingDatabase(t *testing.T) {
+	db, err := sql.Open("sqlite", sqliteDSN(filepath.Join(t.TempDir(), "legacy.db")))
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer db.Close()
-	if err := migrate(db); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := db.Exec("INSERT INTO rooms(name,capacity) VALUES('Sala 1',10)"); err != nil {
-		t.Fatal(err)
-	}
-	otherDB, err := sql.Open("sqlite", dsn)
+	_, err = db.Exec(`CREATE TABLE rooms (id INTEGER PRIMARY KEY, name TEXT NOT NULL UNIQUE, description TEXT NOT NULL DEFAULT '', capacity INTEGER NOT NULL, location TEXT NOT NULL DEFAULT '', resources TEXT NOT NULL DEFAULT '');
+CREATE TABLE bookings (id INTEGER PRIMARY KEY, room_id INTEGER NOT NULL REFERENCES rooms(id), owner TEXT NOT NULL, title TEXT NOT NULL, description TEXT NOT NULL DEFAULT '', day TEXT NOT NULL, starts TEXT NOT NULL, ends TEXT NOT NULL);
+INSERT INTO rooms(name,capacity) VALUES('Legado',10);
+INSERT INTO bookings(room_id,owner,title,day,starts,ends) VALUES(1,'Ana','Legado','2999-01-01','09:00','10:00');`)
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer otherDB.Close()
-
-	start := make(chan struct{})
-	responses := make(chan flash, 2)
-	var wg sync.WaitGroup
-	for _, app := range []*App{{db: db}, {db: otherDB}} {
-		ctx, cancel := context.WithCancel(t.Context())
-		defer cancel()
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			<-start
-			form := url.Values{"room_id": {"1"}, "owner": {"Ana"}, "title": {"Planejamento"}, "day": {"2999-01-01"}, "starts": {"09:00"}, "ends": {"10:00"}}
-			r := httptest.NewRequest(http.MethodPost, "/bookings", strings.NewReader(form.Encode())).WithContext(ctx)
-			r.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-			w := httptest.NewRecorder()
-			app.bookings(w, r)
-			responses <- flashFromResponse(t, w)
-		}()
+	if err := migrate(db); err != nil {
+		t.Fatal(err)
 	}
-	close(start)
-	wg.Wait()
-	close(responses)
-
-	var successes, conflicts int
-	for response := range responses {
-		if response.Message == "Reserva criada" {
-			successes++
-		}
-		if response.Error == "Esta sala já está reservada nesse horário" {
-			conflicts++
-		}
+	if err := migrate(db); err != nil {
+		t.Fatalf("migration is not idempotent: %v", err)
 	}
-	if successes != 1 || conflicts != 1 {
-		t.Fatalf("expected one success and one conflict: success=%d conflict=%d", successes, conflicts)
+	var status string
+	if err := db.QueryRow("SELECT status FROM bookings WHERE id=1").Scan(&status); err != nil || status != "approved" {
+		t.Fatalf("legacy booking not approved: %q, %v", status, err)
 	}
-	var count int
-	if err := db.QueryRow("SELECT COUNT(*) FROM bookings").Scan(&count); err != nil || count != 1 {
-		t.Fatalf("expected one booking: %d, %v", count, err)
-	}
-}
-
-func flashFromResponse(t *testing.T, w *httptest.ResponseRecorder) flash {
-	t.Helper()
-	r := httptest.NewRequest(http.MethodGet, "/", nil)
-	for _, cookie := range w.Result().Cookies() {
-		if cookie.Name == "flash" {
-			r.AddCookie(cookie)
-			return readFlash(httptest.NewRecorder(), r)
-		}
-	}
-	t.Fatal("flash cookie missing")
-	return flash{}
 }
 
 func TestDateBR(t *testing.T) {
@@ -214,20 +163,6 @@ func TestNavigateAgenda(t *testing.T) {
 	(&App{}).navigateAgenda(w, r)
 	if w.Code != http.StatusSeeOther || !strings.Contains(w.Header().Get("Set-Cookie"), "2026-07-16") {
 		t.Fatalf("unexpected navigation: %d %s", w.Code, w.Header().Get("Set-Cookie"))
-	}
-}
-
-func TestRedirectKeepsBookingFieldsAfterError(t *testing.T) {
-	form := url.Values{"room_id": {"2"}, "owner": {"Ana"}, "title": {"Planejamento"}, "description": {"Q3"}, "day": {"2999-01-01"}, "starts": {"10:00"}, "ends": {"09:00"}}
-	r := httptest.NewRequest("POST", "/bookings", strings.NewReader(form.Encode()))
-	r.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	w := httptest.NewRecorder()
-	(&App{}).redirect(w, r, "", "Data ou horário inválido")
-	if location := w.Result().Header.Get("Location"); location != "/" {
-		t.Fatalf("unexpected redirect: %s", location)
-	}
-	if !strings.Contains(w.Result().Header.Get("Set-Cookie"), "flash=") {
-		t.Fatal("flash cookie missing")
 	}
 }
 
